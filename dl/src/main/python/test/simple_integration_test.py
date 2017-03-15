@@ -51,7 +51,7 @@ class TestWorkFlow(unittest.TestCase):
             model=model,
             training_rdd=trainingData,
             criterion=MSECriterion(),
-            optim_method="Adagrad",
+            optim_method="sgd",
             state=state,
             end_trigger=MaxEpoch(5),
             batch_size=32)
@@ -63,15 +63,14 @@ class TestWorkFlow(unittest.TestCase):
         )
         optimizer.setcheckpoint(SeveralIteration(1), "/tmp/prototype/")
         train_summary = TrainSummary(log_dir=sc.appName,
-        app_name="run1", trigger={"learningRate": "hello"})
+                                     app_name="run1",
+                                     trigger={
+                                         "learningRate": SeveralIteration(1)})
+        optimizer.set_train_summary(train_summary)
 
-        # optimizer.set_train_summary(train_summary)
+        train_summary.read_scalar("learningRate")
 
         trained_model = optimizer.optimize()
-
-
-        # train_summary.read_scalar("learningRate")
-
 
         # TODO: add result validation
         parameters = trained_model.parameters()

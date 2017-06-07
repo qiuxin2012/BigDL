@@ -67,6 +67,8 @@ trait MiniBatch[T] extends Serializable{
       " Only support TensorMiniBatch.")
     this.asInstanceOf[TensorMiniBatch[T]].input
   }
+
+  def setValue(index: Int, sample: Sample[T]): this.type
 }
 
 /**
@@ -97,32 +99,59 @@ class TensorMiniBatch[T](
   override def getTarget(): Activity = {
     target
   }
+
+  def setValue(index: Int, sample: Sample[T]): this.type = {
+    // todo
+    throw new UnsupportedOperationException("unimplemented")
+  }
+
 }
 
 /**
  * A MiniBatch with [[com.intel.analytics.bigdl.utils.Table]] input and [[Tensor]] target.
  * The size of first dimension in input's first tensor and target is the mini-batch size.
  *
- * @param input input Table
- * @param target target Tensor
+ * @param inputData input Table
+ * @param targetData target Tensor
  * @tparam T Numeric type
  */
 class ArrayTensorMiniBatch[T](
-      val input: Table,
-      val target: Tensor[T]) extends MiniBatch[T]{
+    inputData: Array[Tensor[T]],
+    targetData: Array[Tensor[T]]) extends MiniBatch[T]{
+  require(inputData.length > 0, "Input data in MiniBatch is empty.")
+  val input: Activity = if (inputData.length == 1) {
+    inputData(1)
+  } else {
+    T(inputData)
+  }
+
+  val target: Activity = if (targetData.length == 0) {
+    null
+  } else if (targetData.length == 1) {
+    targetData(1)
+  } else {
+    T(targetData)
+  }
 
   override def size(): Int = {
-    input[Tensor[T]](1).size(1)
+    inputData(0).size(1)
   }
 
   override def slice(offset: Int, length: Int): MiniBatch[T] = {
-    val t = T()
+    val is = new Array[Tensor[T]](inputData.length)
+    val ts = new Array[Tensor[T]](targetData.length)
     var b = 1
-    while(b <= input.length()) {
-      t(b) = input[Tensor[T]](b).narrow(1, offset, length)
+    while(b <= inputData.size) {
+      is(b) = inputData(b).narrow(1, offset, length)
       b += 1
     }
-    MiniBatch(t, target.narrow(1, offset, length))
+    b = 1
+    while(b <= targetData.size) {
+      ts(b) = inputData(b).narrow(1, offset, length)
+      b += 1
+    }
+
+    MiniBatch(is, ts)
   }
 
   override def getInput(): Activity = {
@@ -132,79 +161,31 @@ class ArrayTensorMiniBatch[T](
   override def getTarget(): Activity = {
     target
   }
-}
 
-/**
- * TensorMiniBatch without target.
- * @param input input tensor of this MiniBatch
- * @tparam T Numeric type
- */
-class UnlabeledTensorMiniBatch[T](
-      val input: Tensor[T]) extends MiniBatch[T]{
+  def setValue(index: Int, sample: Sample[T]): this.type = {
 
-  override def size(): Int = {
-    input.size(1)
-  }
-
-  override def slice(offset: Int, length: Int): MiniBatch[T] = {
-    MiniBatch(input.narrow(1, offset, length))
-  }
-
-  override def getInput(): Activity = {
-    input
-  }
-
-  override def getTarget(): Activity = {
-    throw new UnsupportedOperationException("UnlabeledTensorMiniBatch: no target in this MiniBatch")
-  }
-}
-
-/**
- * ArrayTensorMiniBatch without target.
- * @param input input table of this MiniBatch
- * @tparam T Numeric type
- */
-class UnlabeledArrayTensorMiniBatch[T](
-      val input: Table) extends MiniBatch[T]{
-
-  override def size(): Int = {
-    input[Tensor[T]](1).size(1)
-  }
-
-  override def slice(offset: Int, length: Int): MiniBatch[T] = {
-    val t = T()
-    var b = 1
-    while(b <= input.length()) {
-      t(b) = input[Tensor[T]](b).narrow(1, offset, length)
-      b += 1
-    }
-    MiniBatch(t)
-  }
-
-  override def getInput(): Activity = {
-    input
-  }
-
-  override def getTarget(): Activity = {
-    throw new UnsupportedOperationException("No target in this UnlabeledArrayTensorMiniBatch")
   }
 }
 
 object MiniBatch {
   def apply[T](input: Tensor[T], target: Tensor[T]): MiniBatch[T] = {
-    new TensorMiniBatch[T](input, target)
+    MiniBatch[T](Array(input), Array(target))
   }
 
-  def apply[T](input: Table, target: Tensor[T]): MiniBatch[T] = {
+  def apply[T](input: Array[Tensor[T]], target: Tensor[T]): MiniBatch[T] = {
+    MiniBatch[T](input, Array(target))
+  }
+
+  def apply[T](input: Array[Tensor[T]], target: Array[Tensor[T]]): MiniBatch[T] = {
     new ArrayTensorMiniBatch[T](input, target)
   }
 
   def apply[T](input: Tensor[T]): MiniBatch[T] = {
-    new UnlabeledTensorMiniBatch[T](input)
+    MiniBatch[T](Array(input), new Array[Tensor[T]](0))
   }
 
-  def apply[T](input: Table): MiniBatch[T] = {
-    new UnlabeledArrayTensorMiniBatch[T](input)
+  def apply[T](input: Array[Tensor[T]]): MiniBatch[T] = {
+    MiniBatch[T](input, new Array[Tensor[T]](0))
   }
 }
 

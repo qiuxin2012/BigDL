@@ -93,6 +93,71 @@ abstract class Sample[T: ClassTag] extends Serializable {
   }
 }
 
+
+/**
+ */
+class ArraySample[T: ClassTag](
+      val data: Array[T],
+      val featureSize: Array[Int],
+      val labelSize: Array[Int]) extends Sample[T] {
+
+  /**
+   * The length of first dimension
+   * @return The length of first dimension
+   */
+  override def featureLength(): Int = {
+    featureSize(2)
+  }
+
+  override def labelLength(): Int = {
+    featureSize(2)
+  }
+
+  override def copy(other: Sample[T]): this.type = {
+    require(other.isInstanceOf[ArraySample[T]], "Sample.copy: sample type not match.")
+    val s = other.asInstanceOf[ArraySample[T]]
+    require(
+      data.length == s.data.length &&
+      featureSize.length == s.featureSize.length &&
+      labelSize.length == s.labelSize.length)
+    System.arraycopy(s.data, 0, this.data, 0, this.data.length)
+    System.arraycopy(s.featureSize, 0, this.featureSize, 0, this.featureSize.length)
+    System.arraycopy(s.labelSize, 0, this.labelSize, 0, this.labelSize.length)
+    this
+  }
+
+  def numFeature(): Int = {
+    var count = 0
+    var j = 0
+    for(i <- featureSize) {
+      if (j == 0) {
+        j = i
+        count += 1
+      } else {
+        j -= 1
+      }
+    }
+    count
+  }
+
+  def numLabel(): Int = size.count(_ == -2)
+
+  def canEqual(other: Any): Boolean = other.isInstanceOf[ArraySample[T]]
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ArraySample[T] =>
+      (that canEqual this) &&
+        data == that.data &&
+        size == that.size
+    case _ => false
+  }
+
+  override def hashCode(): Int = {
+    val state = Seq(data, size)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+}
+
 /**
  * A kind of sample. Feature is a tensor, and label is a tensor too.
  * @param featureTensor feature tensor

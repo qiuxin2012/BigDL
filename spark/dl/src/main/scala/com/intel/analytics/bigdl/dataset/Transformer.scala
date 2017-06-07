@@ -721,15 +721,7 @@ object SampleToMiniBatch {
       s += 1
     }
 
-    // inputs Array[Tensor] to table
-    val input = T()
-    i = 1
-    while(i <= inputs.length) {
-      input(i) = inputs(i - 1)
-      i += 1
-    }
-
-    MiniBatch(input, target)
+    MiniBatch(inputs, target)
   }
 
   /**
@@ -786,15 +778,7 @@ object SampleToMiniBatch {
       s += 1
     }
 
-    // inputs Array[Tensor] to table
-    val input = T()
-    i = 1
-    while(i <= inputs.length) {
-      input(i) = inputs(i - 1)
-      i += 1
-    }
-
-    MiniBatch(input)
+    MiniBatch(inputs)
   }
 
   /**

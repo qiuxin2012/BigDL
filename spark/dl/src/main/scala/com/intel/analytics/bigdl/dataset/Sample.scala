@@ -24,12 +24,14 @@ import scala.reflect.ClassTag
 
 /**
  * Class that represents the features and labels of a data sample.
+ *
  * @tparam T numeric type
  */
 abstract class Sample[T: ClassTag] extends Serializable {
   /**
    * Length of the feature.
    * This function could be used to sort samples in [[DataSet]].
+   *
    * @return
    */
   def featureLength(): Int
@@ -37,12 +39,14 @@ abstract class Sample[T: ClassTag] extends Serializable {
   /**
    * Length of the feature.
    * This function could be used to find the longest label.
+   *
    * @return
    */
   def labelLength(): Int
 
   /**
    * Copy other Sample's data to this Sample
+   *
    * @param other Sample to be copied.
    * @return this
    */
@@ -50,18 +54,21 @@ abstract class Sample[T: ClassTag] extends Serializable {
 
   /**
    * Number of tensors in feature
+   *
    * @return number of tensors in feature
    */
   def numFeature(): Int
 
   /**
    * Number of tensors in label
+   *
    * @return number of tensors in label
    */
   def numLabel(): Int
 
   /**
    * Deep clone
+   *
    * @return a deep clone
    */
   override def clone(): this.type =
@@ -98,19 +105,31 @@ abstract class Sample[T: ClassTag] extends Serializable {
  */
 class ArraySample[T: ClassTag](
       val data: Array[T],
-      val featureSize: Array[Int],
-      val labelSize: Array[Int]) extends Sample[T] {
+      val size: Array[Int]) extends Sample[T] {
 
   /**
    * The length of first dimension
+   *
    * @return The length of first dimension
    */
   override def featureLength(): Int = {
-    featureSize(2)
+    size(2)
   }
 
   override def labelLength(): Int = {
-    featureSize(2)
+    var count = 0
+    var j = 0
+    var i = 1
+    while (i < size.length) {
+      if (j == 0) {
+        j = size(i)
+        count += 1
+      } else {
+        j -= 1
+      }
+      i += 1
+    }
+    count - featureLength()
   }
 
   override def copy(other: Sample[T]): this.type = {
@@ -118,29 +137,31 @@ class ArraySample[T: ClassTag](
     val s = other.asInstanceOf[ArraySample[T]]
     require(
       data.length == s.data.length &&
-      featureSize.length == s.featureSize.length &&
-      labelSize.length == s.labelSize.length)
+      size.length == s.size.length)
     System.arraycopy(s.data, 0, this.data, 0, this.data.length)
-    System.arraycopy(s.featureSize, 0, this.featureSize, 0, this.featureSize.length)
-    System.arraycopy(s.labelSize, 0, this.labelSize, 0, this.labelSize.length)
+    System.arraycopy(s.size, 0, this.size, 0, this.size.length)
     this
   }
 
   def numFeature(): Int = {
+    size(0)
+  }
+
+  def numLabel(): Int = {
     var count = 0
     var j = 0
-    for(i <- featureSize) {
+    var i = 1
+    while (i < size.length) {
       if (j == 0) {
-        j = i
+        j = size(i)
         count += 1
       } else {
         j -= 1
       }
+      i += 1
     }
-    count
+    count - size(0)
   }
-
-  def numLabel(): Int = size.count(_ == -2)
 
   def canEqual(other: Any): Boolean = other.isInstanceOf[ArraySample[T]]
 
@@ -160,6 +181,7 @@ class ArraySample[T: ClassTag](
 
 /**
  * A kind of sample. Feature is a tensor, and label is a tensor too.
+ *
  * @param featureTensor feature tensor
  * @param labelTensor label tensor
  * @tparam T numeric type
@@ -170,6 +192,7 @@ class TensorSample[T: ClassTag](
 
   /**
    * The length of first dimension
+   *
    * @return The length of first dimension
    */
   override def featureLength(): Int = {
@@ -210,6 +233,7 @@ class TensorSample[T: ClassTag](
 
 /**
  * A kind of sample. Feature is a tensor, and label is a double/float.
+ *
  * @param featureTensor feature tensor
  * @param labelValue label
  * @tparam T numeric type
@@ -255,6 +279,7 @@ class TensorTSample[T: ClassTag](
 
 /**
  * A kind of sample. Feature is an Array[Tensor], and label is a tensor too.
+ *
  * @param features array of tensor
  * @param labels label tensor
  * @tparam T numeric type
@@ -305,6 +330,7 @@ class ArrayTensorSample[T: ClassTag](
 
 /**
  * A kind of sample doesn't contain label. Feature is a Tensor.
+ *
  * @param featureTensor feature tensor
  * @tparam T numeric type
  */
@@ -344,6 +370,7 @@ class UnlabeledTensorSample[T: ClassTag](
 
 /**
  * A kind of sample doesn't contain label. Feature is an Array[Tensor].
+ *
  * @param features array of tensor
  * @tparam T numeric type
  */

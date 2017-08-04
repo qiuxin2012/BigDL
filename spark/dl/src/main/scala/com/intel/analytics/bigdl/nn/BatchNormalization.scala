@@ -132,15 +132,12 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
     runningVar.resize(nOutput).fill(ev.fromType[Int](1))
   }
 
-  var inputBuffer = Tensor()
-
   override def updateOutput(input: Tensor[T]): Tensor[T] = {
     checkInputDim(input)
 
     output.resizeAs(input).copy(input)
 
-    inputBuffer.resizeAs(input).copy(input)
-    val _input = makeBatch(inputBuffer)
+    val _input = makeBatch(input)
     val nInput = _input.size(2)
 
     if (runningMean.nElement == 0 || runningMean.nElement < nInput) {
@@ -155,19 +152,13 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
     }
     val n = _input.nElement() / nInput
 
-    if (train) {
-      gradInput.resizeAs(_input)
-    }
-
     val spatialBatchSize = if (nDim == 2) 1 else _input.size(1)
-    val inputFloat = _input
-    val inputData = inputFloat.storage().array()
-    val inputOffset = inputFloat.storageOffset() - 1
+    val inputData = _input.storage().array()
+    val inputOffset = _input.storageOffset() - 1
     val inputStride = if (nDim == 2) _input.stride(1) else _input.stride(4)
     val inputStride2 = _input.stride(2)
-    val outputFloat = output
-    val outputData = outputFloat.storage().array()
-    val outputOffset = outputFloat.storageOffset() - 1
+    val outputData = output.storage().array()
+    val outputOffset = output.storageOffset() - 1
     val outputStride = output.stride(1)
     updateOutputFrame(inputData, inputOffset, inputStride, outputData, outputOffset,
       outputStride, nInput, n, inputStride2, spatialBatchSize)
@@ -201,9 +192,10 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
         val mean = ev.divide(sum, ev.fromType(n))
         saveMean.setValue(f, mean)
 
+        // output has the same elements with input
         i = 0
         while (i < spatialBatchSize) {
-          ev.sub(frameSize, input, inputOffset + (f - 1 + i * nInput)
+          ev.sub(frameSize, output, inputOffset + (f - 1 + i * nInput)
             * inputStride2, mean, inputStride)
           i += 1
         }
@@ -211,8 +203,7 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
         f += 1
       }
 
-      ev.arraycopy(input, 0, gradInput.storage().array(), 0, input.length)
-      ev.vPowx(input.length, input, 0, ev.fromType(2), input, 0)
+      ev.vPowx(n * nInput, output, inputOffset, ev.fromType(2), output, inputOffset)
 
       f = 1
       while (f <= nInput) {
@@ -220,7 +211,7 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
         var sum = ev.zero
         var i = 0
         while (i < spatialBatchSize) {
-          sum = ev.plus(sum, ev.dot(frameSize, input,
+          sum = ev.plus(sum, ev.dot(frameSize, output,
             inputOffset + (f - 1 + i * nInput) * inputStride2,
             inputStride, ones.storage.array, ones.storageOffset() - 1, ones.stride(1)))
           i += 1
@@ -243,6 +234,7 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
           ev.toType[Double](runningVar.storage().array()(f - 1))))
         f += 1
       }
+      ev.arraycopy(input, inputOffset, output, outputOffset, n * nInput)
     }
 
     if (needFix) {
@@ -309,7 +301,7 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
       results = new Array[Future[_]](nInput)
     }
     val n = input.nElement() / nInput
-    val spatialBatchSize = if (nDim == 2) 1 else inputBuffer.size(1)
+    val spatialBatchSize = if (nDim == 2) 1 else input.size(1)
 
     val gradWeightData = gradWeight.storage().array()
     val gradWeightOffset = gradWeight.storageOffset() - 1
@@ -319,10 +311,10 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
     val gradInputOffset = gradInput.storageOffset() - 1
     val gradInputStride = if (nDim == 2) gradInput.stride(1) else gradInput.stride(4)
     val gradInputStride2 = gradInput.stride(2)
-    val inputData = inputBuffer.storage().array()
-    val inputOffset = inputBuffer.storageOffset() - 1
-    val inputStride = if (nDim == 2) inputBuffer.stride(1) else inputBuffer.stride(4)
-    val inputStride2 = inputBuffer.stride(2)
+    val inputData = input.storage().array()
+    val inputOffset = input.storageOffset() - 1
+    val inputStride = if (nDim == 2) input.stride(1) else input.stride(4)
+    val inputStride2 = input.stride(2)
     val gradOutputData = gradOutput.storage().array()
     val gradOutputOffset = gradOutput.storageOffset() - 1
     val gradOutputStride = if (nDim == 2) gradOutput.stride(1) else gradOutput.stride(4)
@@ -330,7 +322,7 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
     if (affine) {
       if (theGradInput != null) {
         if (theGradWeight != null && theGradBias != null) {
-          backwardFrame(gradInputData, gradInputOffset, gradInputStride, gradInputStride2,
+          backwardFrame(inputData, inputOffset, inputStride, inputStride2,
             gradOutputData, gradOutputOffset, gradOutputStride, gradOutputStride2,
             gradInputData, gradInputOffset, gradInputStride, gradInputStride2, nInput, n,
             scaleW, scaleB,
@@ -368,7 +360,9 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
         gradBias: Array[T], gradBiasOffset: Int,
         spatialBatchSize: Int): Unit = {
     if (!train) {
-      ev.arraycopy(gradOutput, 0, gradInput, 0, gradOutput.length)
+      ev.arraycopy(gradOutput, gradOutputOffset, gradInput, gradInputOffset, n * nInput)
+    } else {
+      ev.arraycopy(input, inputOffset, gradInput, gradInputOffset, n * nInput)
     }
     val frameSize = if (nDim == 2) n else n / spatialBatchSize
 
@@ -384,27 +378,31 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
 
       // sum gradOutput
       var sum = ev.zero
-      var i = 0
-      while (i < spatialBatchSize) {
-        sum = ev.plus(sum, ev.dot(frameSize, gradOutput,
-          gradOutputOffset + (f - 1 + i * nInput) * gradOutputStride2, gradOutputStride,
-          ones.storage().array(), ones.storageOffset() - 1, ones.stride(1)))
-        i += 1
-      }
-      saveGradSum.setValue(f, sum)
 
       // dot product of the Q(X) and gradOutput
       var dotp = ev.zero
-      i = 0
-      while (i < spatialBatchSize) {
-        dotp = ev.plus(dotp, ev.dot(frameSize, input, inputOffset + (f - 1 + i * nInput)
-          * inputStride2, inputStride, gradOutput, gradOutputOffset + (f - 1 + i * nInput)
-          * gradOutputStride2, gradOutputStride))
-        i += 1
-      }
-      saveDotp.setValue(f, dotp)
 
       if (null != gradInput) {
+        var i = 0
+        while (i < spatialBatchSize) {
+          sum = ev.plus(sum, ev.dot(frameSize, gradOutput,
+            gradOutputOffset + (f - 1 + i * nInput) * gradOutputStride2, gradOutputStride,
+            ones.storage().array(), ones.storageOffset() - 1, ones.stride(1)))
+          i += 1
+        }
+        saveGradSum.setValue(f, sum)
+
+        i = 0
+        while (i < spatialBatchSize) {
+          ev.sub(frameSize, gradInput, gradInputOffset + (f - 1 + i * nInput)
+            * gradInputStride2, mean, gradInputStride)
+          dotp = ev.plus(dotp, ev.dot(frameSize, gradInput, gradInputOffset + (f - 1 + i * nInput)
+            * gradInputStride2, gradInputStride, gradOutput, gradOutputOffset + (f - 1 + i * nInput)
+            * gradOutputStride2, gradOutputStride))
+          i += 1
+        }
+        saveDotp.setValue(f, dotp)
+
         if (train) {
           val k = ev.divide(ev.times(dotp, ev.times(invstd, invstd)), ev.fromType(n))
 
@@ -430,6 +428,9 @@ class BatchNormalization[@specialized(Float, Double) T: ClassTag](
             i += 1
           }
         }
+      } else {
+        sum = saveGradSum.valueAt(f)
+        dotp = saveDotp.valueAt(f)
       }
 
       if (null != gradWeight && scaleW != 0) {

@@ -145,7 +145,7 @@ object ResNet {
       if (useConv) {
         Sequential()
           .add(Convolution(nInputPlane, nOutputPlane, 1, 1, stride, stride, optnet = optnet))
-          .add(SpatialBatchNormalization(nOutputPlane))
+//          .add(SpatialBatchNormalization(nOutputPlane))
       } else if (nInputPlane != nOutputPlane) {
         Sequential()
           .add(SpatialAveragePooling(1, 1, stride, stride))
@@ -163,10 +163,10 @@ object ResNet {
 
       val s = Sequential()
       s.add(Convolution(nInputPlane, n, 3, 3, stride, stride, 1, 1, optnet = optnet))
-      s.add(SpatialBatchNormalization(n))
+//      s.add(SpatialBatchNormalization(n))
       s.add(ReLU(true))
       s.add(Convolution(n, n, 3, 3, 1, 1, 1, 1, optnet = optnet))
-      s.add(SpatialBatchNormalization(n))
+//      s.add(SpatialBatchNormalization(n))
 
       Sequential()
         .add(ConcatTable()
@@ -182,13 +182,13 @@ object ResNet {
 
       val s = Sequential()
       s.add(Convolution(nInputPlane, n, 1, 1, 1, 1, 0, 0, optnet = optnet))
-        .add(SpatialBatchNormalization(n))
+//        .add(SpatialBatchNormalization(n))
         .add(ReLU(true))
         .add(Convolution(n, n, 3, 3, stride, stride, 1, 1, optnet = optnet))
-        .add(SpatialBatchNormalization(n))
+//        .add(SpatialBatchNormalization(n))
         .add(ReLU(true))
         .add(Convolution(n, n*4, 1, 1, 1, 1, 0, 0, optnet = optnet))
-        .add(SpatialBatchNormalization(n * 4))
+//        .add(SpatialBatchNormalization(n * 4))
 
       Sequential()
         .add(ConcatTable()
@@ -231,7 +231,7 @@ object ResNet {
       logger.info(" | ResNet-" + depth + " ImageNet")
 
       model.add(Convolution(3, 64, 7, 7, 2, 2, 3, 3, optnet = optnet))
-        .add(SpatialBatchNormalization(64))
+//        .add(SpatialBatchNormalization(64))
         .add(ReLU(true))
         .add(SpatialMaxPooling(3, 3, 2, 2, 1, 1))
         .add(layer(block, 64, loopConfig._1))
@@ -249,7 +249,7 @@ object ResNet {
       logger.info(" | ResNet-" + depth + " CIFAR-10")
 
       model.add(Convolution(3, 16, 3, 3, 1, 1, 1, 1, optnet = optnet))
-      model.add(SpatialBatchNormalization(16))
+//      model.add(SpatialBatchNormalization(16))
       model.add(ReLU(true))
       model.add(layer(basicBlock, 16, n))
       model.add(layer(basicBlock, 32, n, 2))

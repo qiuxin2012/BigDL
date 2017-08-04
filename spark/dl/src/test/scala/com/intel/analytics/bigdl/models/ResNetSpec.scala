@@ -33,10 +33,13 @@ import scala.util.Random
 class ResNetSpec extends TorchSpec {
   "resnet perf" should " " in {
     val resnet = ResNet(1000, T("shortcutType" -> ShortcutType.B,
-      "depth" -> 50, "dataset" -> DatasetType.ImageNet))
+      "depth" -> 50, "optnet" -> false, "dataset" -> DatasetType.ImageNet))
+    ResNet.shareGradInput(resnet)
+    ResNet.modelInit(resnet)
     resnet.zeroGradParameters()
-    val input = Tensor[Float](4, 3, 224, 224).apply1( e => Random.nextFloat())
-    val gradOutput = Tensor[Float](4, 1000).rand()
+    val batchSize = 2
+    val input = Tensor[Float](batchSize, 3, 224, 224).apply1( e => Random.nextFloat())
+    val gradOutput = Tensor[Float](batchSize, 1000).rand()
 
     resnet.forward(input)
     resnet.backward(input, gradOutput)
@@ -45,13 +48,13 @@ class ResNetSpec extends TorchSpec {
     resnet.resetTimes()
 
     val start = System.nanoTime()
-    val iter = 5
+    val iter = 10
     (1 to iter).foreach{i =>
       resnet.zeroGradParameters()
       resnet.forward(input)
       resnet.backward(input, gradOutput)
     }
-    println(s"Total time: ${(System.nanoTime() - start) / 1e9 / iter}")
+    println(s"Total time: ${batchSize / ((System.nanoTime() - start) / 1e9 / iter)} image/s")
 
     val times = resnet.getTimes()
 
@@ -61,12 +64,6 @@ class ResNetSpec extends TorchSpec {
       (v._1, v._2.map(_._2).sum)
     }.toArray.sortWith(_._2 > _._2).mkString("\n")
     println(a)
-
-//    println(times.map(t => ( {
-//      s"${t._1.getClass.getName}"
-//    }, (t._2 + t._3) / 1e9 / iter,
-//      t._2 / 1e9 / iter, t._3 / 1e9 / iter))
-//      .sortWith(_._2 > _._2).mkString("\n"))
 
   }
 

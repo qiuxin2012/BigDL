@@ -19,12 +19,13 @@ import com.intel.analytics.bigdl._
 import com.intel.analytics.bigdl.nn.{ClassNLLCriterion, Module}
 import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.utils.{Engine, LoggerFilter, T, Table}
+import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkContext
 
 object TrainInceptionV1 {
   LoggerFilter.redirectSparkInfoLogs()
-  Logger.getLogger("com.intel.analytics.bigdl.optim").setLevel(Level.INFO)
+  Logger.getLogger("com.intel.analytics.bigdl.optim").setLevel(Level.DEBUG)
 
   import Options._
 
@@ -102,8 +103,16 @@ object TrainInceptionV1 {
         optimizer.overWriteCheckpoint()
       }
 
+      val logdir = "imagenet"
+      val appName = s"baseline-${sc.applicationId}"
+      val trainSummary = TrainSummary(logdir, appName)
+      trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
+      val validationSummary = ValidationSummary(logdir, appName)
+
       optimizer
         .setOptimMethod(optimMethod)
+        .setTrainSummary(trainSummary)
+        .setValidationSummary(validationSummary)
         .setValidation(testTrigger,
           valSet, Array(new Top1Accuracy[Float], new Top5Accuracy[Float]))
         .setEndWhen(endTrigger)

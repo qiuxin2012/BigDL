@@ -54,8 +54,9 @@ object Train {
       val optimMethod = if (param.stateSnapshot.isDefined) {
         OptimMethod.load[Float](param.stateSnapshot.get)
       } else {
-        new SGD[Float](learningRate = param.learningRate,
-          learningRateDecay = param.learningRateDecay)
+        new LarsSgd[Float](learningRate = param.learningRate,
+          weightDecay = 1e-4)
+          .setParameterIndices(model.parameters()._2)
       }
 
       val trainSet = DataSet.array(load(trainData, trainLabel), sc) ->

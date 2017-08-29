@@ -439,7 +439,16 @@ object DistriOptimizer {
             val paramTable = parametersTable[Table](moduleName)
             paramTable.keySet.foreach { paramName =>
               trainSummary.addHistogram(
-                s"$moduleName/$paramName", paramTable[Tensor[T]](paramName), currentIteration)}
+                s"$moduleName/$paramName", paramTable[Tensor[T]](paramName), currentIteration)
+            }
+            trainSummary.addScalar(
+              s"${moduleName}_weight_clr", driverState[Float]("LearningRate") *
+                ev.toType[Float](paramTable[Tensor[T]]("weight").norm(2)) /
+                ev.toType[Float](paramTable[Tensor[T]]("gradWeight").norm(2)), currentIteration)
+            trainSummary.addScalar(
+              s"${moduleName}_bias_clr", driverState[Float]("LearningRate") *
+                ev.toType[Float](paramTable[Tensor[T]]("bias").norm(2)) /
+                ev.toType[Float](paramTable[Tensor[T]]("gradBias").norm(2)), currentIteration)
           }))
       }
       val scalarTrigger = trainSummary.getScalarTriggers()
@@ -531,7 +540,10 @@ object DistriOptimizer {
       )
 
       logger.info("model thread pool size is " + Engine.model.getPoolSize)
-      parameters.init(weights)
+      val (parameterOffset, parameterLength) = parameters.init(weights)
+
+      broadcastOptim.state("parameterOffset") = parameterOffset
+      broadcastOptim.state("parameterLength") = parameterLength
 
       Iterator.single(Cache(
         cached.map(_._1), // models

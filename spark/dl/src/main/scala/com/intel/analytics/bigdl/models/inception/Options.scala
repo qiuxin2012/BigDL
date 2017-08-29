@@ -30,7 +30,11 @@ object Options {
     learningRate: Double = 0.01,
     env: String = "local",
     overWriteCheckpoint: Boolean = false,
+    nesterov: Boolean = false,
+    maxLr: Double = 0.14,
+    warmUpEpoch: Int = 5,
     maxEpoch: Option[Int] = None,
+    resumeEpoch: Option[Int] = None,
     maxIteration: Int = 62000,
     weightDecay: Double = 0.0001,
     checkpointIteration: Int = 620,
@@ -53,6 +57,9 @@ object Options {
     opt[Int]('e', "maxEpoch")
       .text("epoch numbers")
       .action((x, c) => c.copy(maxEpoch = Some(x)))
+    opt[Int]("resumeEpoch")
+      .text("which epoch to start")
+      .action((x, c) => c.copy(resumeEpoch = Some(x)))
     opt[Int]('i', "maxIteration")
       .text("iteration numbers")
       .action((x, c) => c.copy(maxIteration = x))
@@ -70,6 +77,15 @@ object Options {
     opt[Unit]("overWrite")
       .text("overwrite checkpoint files")
       .action( (_, c) => c.copy(overWriteCheckpoint = true) )
+    opt[Unit]("nesterov")
+      .text("enable nesterov momentum")
+      .action( (_, c) => c.copy(nesterov = true) )
+    opt[Double]("maxLr")
+      .text("max Lr after warm up")
+      .action((x, c) => c.copy(maxLr = x))
+    opt[Int]("warmUpEpoch")
+      .text("how many epoch to warm up")
+      .action((x, c) => c.copy(warmUpEpoch = x))
     opt[Double]("weightDecay")
       .text("weight decay")
       .action((x, c) => c.copy(weightDecay = x))

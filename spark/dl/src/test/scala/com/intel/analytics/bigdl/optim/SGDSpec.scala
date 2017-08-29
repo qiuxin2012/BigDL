@@ -249,6 +249,41 @@ class SGDSpec extends FlatSpec with Matchers {
       be(-0.1 * (1 - 2.0 / 100) * (1 - 2.0 / 100) * (1 - 2.0 / 100))
   }
 
+  "ploy learning rate decay with warmup" should "generate correct learning rates" in {
+    val optimMethod = new SGD[Double](0.1)
+    optimMethod.learningRateSchedule = PolyWithWarmUp(3, 0.3, 3, 103)
+    def feval(x: Tensor[Double]): (Double, Tensor[Double]) = {
+      return (0.1, Tensor[Double](Storage(Array(1.0, 1.0))))
+    }
+    val x = Tensor[Double](Storage(Array(10.0, 10.0)))
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should be(-0.1)
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should be(-0.4)
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should be(-0.7)
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should be(-1.0 +- 1e-15)
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should
+      be(-1 * (1 - 1.0 / 100) * (1 - 1.0 / 100) * (1 - 1.0 / 100))
+    optimMethod.optimize(feval, x)
+    optimMethod.learningRateSchedule.currentRate should
+      be(-1 * (1 - 2.0 / 100) * (1 - 2.0 / 100) * (1 - 2.0 / 100) +- 1e-15)
+  }
+
+  "ploy with warm up" should "generate correct learning rates" in {
+    val optimMethod = new SGD[Double](0.01)
+    optimMethod.learningRateSchedule = PolyWithWarmUp(99, 0.01, 0.5, 1000)
+    def feval(x: Tensor[Double]): (Double, Tensor[Double]) = {
+      return (0.1, Tensor[Double](Storage(Array(1.0, 1.0))))
+    }
+    val x = Tensor[Double](Storage(Array(10.0, 10.0)))
+    for (i <- 0 to 1000) {
+      optimMethod.optimize(feval, x)
+    }
+  }
+
   "epoch decay without table" should "generate correct learning rates" in {
     val regimes: Array[Regime] = Array(
       Regime(1, 3, T("learningRate" -> 1e-2, "weightDecay" -> 2e-4)),

@@ -19,7 +19,7 @@ package com.intel.analytics.bigdl.models
 import com.intel.analytics.bigdl.models.inception._
 import com.intel.analytics.bigdl.nn.{ClassNLLCriterion, Graph, Input}
 import com.intel.analytics.bigdl.nn.abstractnn.AbstractModule
-import com.intel.analytics.bigdl.optim.SGD
+import com.intel.analytics.bigdl.optim.{LarsSgd, SGD}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.torch.{TH, TorchSpec}
 import com.intel.analytics.bigdl.utils.RandomGenerator._
@@ -32,6 +32,15 @@ import scala.util.Random
 @com.intel.analytics.bigdl.tags.Serial
 class InceptionSpec extends TorchSpec {
   "Inception+bn" should "generate correct output" in {
+    val inception = Inception_v1_NoAuxClassifier(1000, true)
+    val para = inception.getParameters()._1.range(1, 6998552)
+    val indices = Array.range(0, 33).map(_ * para.nElement() / 32)
+    val p = inception.parameters()._1
+    val lar = new LarsSgd[Float]()
+//    lar.state("parameterOffset") = 10000
+//    lar.state("parameterLength") = 100000
+    lar.setParameterIndices(p)
+    lar.optimize(_ => (1, Tensor.range(1, 100000)), Tensor.range(1, 100000))
     torchCheck()
 
     Random.setSeed(4)

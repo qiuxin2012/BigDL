@@ -36,6 +36,8 @@ object Utils {
     shortcutType: String = "A",
     batchSize: Int = 128,
     nepochs: Int = 165,
+    maxLr: Double = 0.14,
+    warmUpEpoch: Int = 5,
     learningRate: Double = 0.1,
     weightDecay: Double = 1e-4,
     momentum: Double = 0.9,
@@ -54,7 +56,7 @@ object Utils {
     opt[String]("state")
       .text("state snapshot location")
       .action((x, c) => c.copy(stateSnapshot = Some(x)))
-    opt[String]("cache")
+    opt[String]("checkpoint")
       .text("where to cache the model")
       .action((x, c) => c.copy(checkpoint = Some(x)))
     opt[Boolean]("optnet")
@@ -75,6 +77,12 @@ object Utils {
     opt[Int]("nEpochs")
       .text("number of epochs of ResNet; default is 165")
       .action((x, c) => c.copy(nepochs = x))
+    opt[Double]("maxLr")
+      .text("max Lr after warm up")
+      .action((x, c) => c.copy(maxLr = x))
+    opt[Int]("warmUpEpoch")
+      .text("how many epoch to warm up")
+      .action((x, c) => c.copy(warmUpEpoch = x))
     opt[Double]("learningRate")
       .text("initial learning rate of ResNet; default is 0.1")
       .action((x, c) => c.copy(learningRate = x))

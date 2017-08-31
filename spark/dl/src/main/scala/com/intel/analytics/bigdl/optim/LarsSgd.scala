@@ -106,8 +106,10 @@ class LarsSgd[T: ClassTag](
     while (i < _x.length) {
       val iThX = _x(i)
       var iThDfdx = _dfdx(i)
-      val iThClr = ev.times(clr, ev.divide(iThX.norm(2),
-        ev.times(iThDfdx.norm(2), ev.fromType(1 + wd))))
+      val iThXNorm = iThX.norm(2)
+      val iThDfdxNorm = iThDfdx.norm(2)
+      val iThClr = ev.times(clr, ev.divide(iThXNorm,
+        ev.plus(iThDfdxNorm, ev.times(ev.fromType(wd), iThXNorm))))
       LarsSgd.logger.info(s"${state("parameterOffset")} $i-th clr: ${iThClr}," +
           s" current iteration ${state("neval")}")
 
@@ -123,6 +125,7 @@ class LarsSgd[T: ClassTag](
         val stateDFDX = state.get[Tensor[T]](s"${i}ThDfdx") match {
           case None =>
             val DFDX = Tensor[T]().resizeAs(iThDfdx).copy(iThDfdx)
+            DFDX.mul(iThClr)
             state(s"${i}ThDfdx") = DFDX
             DFDX
           case s: Some[Tensor[T]] => s.get.mul(ev.fromType[Double](mom)).

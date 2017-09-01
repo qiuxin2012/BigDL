@@ -482,11 +482,11 @@ object DistriOptimizer {
                 s"$moduleName/$paramName", paramTable[Tensor[T]](paramName), currentIteration)
             }
             trainSummary.addScalar(
-              s"${moduleName}_weight_clr", driverState[Float]("LearningRate") *
+              s"${moduleName}_weight_norm2",
                 ev.toType[Float](paramTable[Tensor[T]]("weight").norm(2)) /
                 ev.toType[Float](paramTable[Tensor[T]]("gradWeight").norm(2)), currentIteration)
             trainSummary.addScalar(
-              s"${moduleName}_bias_clr", driverState[Float]("LearningRate") *
+              s"${moduleName}_bias_norm2",
                 ev.toType[Float](paramTable[Tensor[T]]("bias").norm(2)) /
                 ev.toType[Float](paramTable[Tensor[T]]("gradBias").norm(2)), currentIteration)
           }))

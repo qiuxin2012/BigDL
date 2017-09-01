@@ -20,6 +20,7 @@ import com.intel.analytics.bigdl.optim.SGD.{Default, LearningRateSchedule}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.{T, Table}
+import org.apache.log4j.Logger
 
 import scala.reflect.ClassTag
 
@@ -46,6 +47,10 @@ class SGD[@specialized(Float, Double) T: ClassTag](
   var learningRates: Tensor[T] = null,
   var weightDecays: Tensor[T] = null)(implicit ev: TensorNumeric[T])
   extends OptimMethod[T] {
+
+  var threshold = 1000
+  var gradThreshold = 0.01
+  var counter = 0
 
   import SGD._
 
@@ -96,8 +101,41 @@ class SGD[@specialized(Float, Double) T: ClassTag](
           val DFDX = Tensor[T]().resizeAs(dfdx).copy(dfdx)
           state("dfdx") = DFDX
           DFDX
-        case s: Some[Tensor[T]] => s.get.mul(ev.fromType[Double](mom)).
+        case s: Some[Tensor[T]] =>
+          if (counter > 100) {
+            val history = s.get
+            var i = 1
+            while (i <= history.nElement()) {
+              val a = history.valueAt(i)
+              val b = dfdx.valueAt(i)
+
+              history.setValue(i, if (ev.toType[Float](ev.abs(a)) * threshold
+                < ev.toType[Float](ev.abs(b)) && ev.toType[Float](ev.abs(ev.times(b, clr)))
+                > ev.toType[Float](ev.abs(x.valueAt(i)))) {
+                logger.warn(s"[Iteration ${state("neval")}] " +
+                  s"dfdx $b is much greater than $a, current weight($i) is " +
+                  s"${x.valueAt(i)} skip this gradient")
+                a
+              } else {
+                if (ev.toType[Float](ev.abs(a)) *
+                  5 < ev.toType[Float](ev.abs(b))) {
+                  logger.info(s"[Iteration ${state("neval")}] " +
+                    s"dfdx $b is much greater than $a, current weight($i) is " +
+                    s"${x.valueAt(i)}")
+                }
+                ev.plus(
+                  ev.times(a, ev.fromType[Double](mom)),
+                  ev.times(ev.fromType[Double](1 - damp), b))
+              })
+
+              i += 1
+            }
+            history
+          } else {
+            counter += 1
+            s.get.mul(ev.fromType[Double](mom)).
           add(ev.fromType[Double](1 - damp), dfdx)
+          }
       }
 
       if (nesterov) {
@@ -196,6 +234,8 @@ class SGD[@specialized(Float, Double) T: ClassTag](
 }
 
 object SGD {
+
+  val logger = Logger.getLogger(this.getClass)
 
   /**
    * Hyper parameter schedule for SGD

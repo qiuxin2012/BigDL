@@ -25,7 +25,7 @@ import org.apache.spark.SparkContext
 
 object TrainInceptionV1 {
   LoggerFilter.redirectSparkInfoLogs()
-  Logger.getLogger("com.intel.analytics.bigdl.optim").setLevel(Level.DEBUG)
+//  Logger.getLogger("com.intel.analytics.bigdl.optim").setLevel(Level.DEBUG)
   val logger = Logger.getLogger(getClass)
 
   import Options._
@@ -94,7 +94,7 @@ object TrainInceptionV1 {
           s"maxLr: $maxLr, " +
           s"delta: $delta, nesterov: ${param.nesterov}")
 
-        val sgd = new LarsSgd[Float](learningRate = param.learningRate,
+        val sgd = new SGD[Float](learningRate = param.learningRate,
           learningRateDecay = 0.0,
           weightDecay = param.weightDecay, momentum = 0.9,
           dampening = 0.0, nesterov = param.nesterov,
@@ -111,7 +111,6 @@ object TrainInceptionV1 {
             "evalCounter" -> (neval - 1)
           ))
         }
-        sgd.setParameterIndices(model.parameters()._1)
         sgd
       } else {
         new SGD[Float](learningRate = param.learningRate, learningRateDecay = 0.0,

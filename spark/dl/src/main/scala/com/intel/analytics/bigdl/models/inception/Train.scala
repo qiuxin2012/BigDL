@@ -101,7 +101,8 @@ object TrainInceptionV1 {
           learningRateSchedule =
  //           SGD.EpochDecayWithWarmUp(warmUpIteration, delta, decay))
          SGD.PolyWithWarmUp(warmUpIteration, delta,
-           0.5, math.ceil(1281167.toDouble / param.batchSize).toInt * param.maxEpoch.get))
+           0.5, math.ceil(1281167.toDouble / param.batchSize).toInt * param.maxEpoch.get),
+          gradientClipMax = param.gradientClipMax)
         if (param.resumeEpoch.isDefined) {
           val resumeEpoch = param.resumeEpoch.get
           val neval = (resumeEpoch - 1) * iterationsPerEpoch + 1

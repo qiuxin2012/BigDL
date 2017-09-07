@@ -63,7 +63,7 @@ class TrainSummary(
    */
   def setSummaryTrigger(tag: String, trigger: Trigger): this.type = {
     require(tag.equals("LearningRate") || tag.equals("Loss") ||
-      tag.equals("Throughput") | tag.equals("Parameters"),
+      tag.equals("Throughput") || tag.equals("Parameters") || tag.equals("gradientNorm2"),
       s"TrainSummary: only support LearningRate, Loss, Parameters and Throughput")
     triggers(tag) = trigger
     this

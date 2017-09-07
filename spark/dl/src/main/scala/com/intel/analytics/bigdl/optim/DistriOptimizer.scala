@@ -303,8 +303,8 @@ object DistriOptimizer {
           Iterator.single(ev.toType[Double](parameters.gradientPartition.sumSquare()))
         }).reduce(_ + _)
 
-        val gradientNorm2 = math.sqrt(gradientSumSquare)
-        driverState("gradientNorm2") = gradientNorm2.toFloat
+        val gradientNorm2 = math.sqrt(gradientSumSquare).toFloat
+        driverState("gradientNorm2") = gradientNorm2
 
         models.mapPartitions { modelIter =>
           val modelCache = modelIter.next()

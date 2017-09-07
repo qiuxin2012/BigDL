@@ -46,7 +46,8 @@ object TrainInceptionV1 {
     trainParser.parse(args, new TrainParams()).map(param => {
       val imageSize = 224
       val conf = Engine.createSparkConf()
-        .setAppName(s"BigDL InceptionV1 Train Example batchSize ${param.batchSize}")
+        .setAppName(s"BigDL InceptionV1 Train Example batchSize" +
+          s" ${param.batchSize} with global gradientClip${param.gradientClipMax}")
         .set("spark.task.maxFailures", "1")
       val sc = new SparkContext(conf)
       Engine.init
@@ -148,6 +149,7 @@ object TrainInceptionV1 {
       val appName = s"${sc.applicationId}"
       val trainSummary = TrainSummary(logdir, appName)
       trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
+      trainSummary.setSummaryTrigger("gradientNorm2", Trigger.severalIteration(1))
       trainSummary.setSummaryTrigger("Parameters", Trigger.severalIteration(10))
       val validationSummary = ValidationSummary(logdir, appName)
 

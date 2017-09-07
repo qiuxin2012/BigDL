@@ -588,6 +588,8 @@ trait TensorMath[T] {
    */
   def norm(y: Tensor[T], value: Int, dim: Int): Tensor[T]
 
+  def sumSquare(): T
+
   /**
    * Implements > operator comparing each element in x with y
    *

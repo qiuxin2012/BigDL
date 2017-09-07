@@ -1700,14 +1700,22 @@ private[tensor] class DenseTensor[@specialized(Float, Double) T: ClassTag](
    */
   override def norm(value: Int): T = {
     require(value > 0, "norm value should be greater than 0")
+    ev.pow(sumNSquare(ev.fromType[Int](value)), ev.fromType(1.0 / value))
+  }
+
+  protected def sumNSquare(n: T): T = {
     var res: T = ev.fromType(0)
     val func = new TensorFunc2[T] {
       override def apply(data1: Array[T], offset1: Int): Unit = {
-        res = ev.plus(res, ev.pow(ev.abs(data1(offset1)), ev.fromType(value)))
+        res = ev.plus(res, ev.pow(ev.abs(data1(offset1)), n))
       }
     }
     DenseTensorApply.apply1[T](this, func)
-    ev.pow(res, ev.fromType(1.0 / value))
+    res
+  }
+
+  override def sumSquare(): T = {
+    sumNSquare(ev.fromType[Int](2))
   }
 
   /**

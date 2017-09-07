@@ -50,10 +50,6 @@ class SGD[@specialized(Float, Double) T: ClassTag](
   var gradientClipMax: Double = 0)(implicit ev: TensorNumeric[T])
   extends OptimMethod[T] {
 
-  var threshold = 1000
-  var gradThreshold = 0.01
-  var counter = 0
-
   import SGD._
 
   /**
@@ -79,19 +75,51 @@ class SGD[@specialized(Float, Double) T: ClassTag](
     require(!nesterov || (mom > 0 && damp == 0),
       "Nesterov momentum requires a momentum and zero dampening")
 
-    var (fx, dfdx) = feval(x)
+    val (fx, dfdxOrigin) = feval(x)
+    var dfdx = state.getOrElse[Tensor[T]]("dfdxBuffer", dfdxOrigin.clone())
+    dfdx.copy(dfdxOrigin)
 
-    val dfdxNorm2 = ev.toType[Double](dfdx.norm(2))
-    if (gradientClipMax > 0) {
-      if (gradientClipMax > dfdxNorm2) {
-        logger.warn(s"[Iteration ${state("neval")}] Normalize this gradient," +
-          s" current dfdx.norm(2) = ${dfdxNorm2} ")
-        logger.warn(s"gradient is ${dfdx}")
-        dfdx.div(ev.fromType[Double](dfdxNorm2 / gradientClipMax))
+
+    if (mom != 0) {
+      val dfdxNorm2 = state[Float]("gradientNorm2")
+//      val historyCounter = state.get[Int]("historyCounter").getOrElse(0)
+//      if (historyCounter > 1000) {
+//        val stateDFDX = state.get[Tensor[T]]("dfdx").get
+//        var i = 1
+//        while (i <= stateDFDX.nElement()) {
+//          val historyI = ev.toType[Float](stateDFDX.valueAt(i))
+//          val gradientI = ev.toType[Float](dfdx.valueAt(i))
+//          val weightI = ev.toType[Float](x.valueAt(i))
+//          if (math.abs(gradientI) > math.abs(historyI * 2)) {
+//            dfdx.setValue(i, ev.fromType[Float](gradientI / math.abs(gradientI) *
+//              math.abs(historyI * 2)))
+//          }
+//          i += 1
+//        }
+//      } else {
+//      val threshold = ev.fromType[Double](0.1)
+//      dfdx.apply1{v =>
+//        if (ev.isGreater(v, threshold)) {
+//          threshold
+//        } else {
+//          v
+//        }
+//      }
+      if (gradientClipMax > 0) {
+        if (gradientClipMax < dfdxNorm2) {
+          logger.warn(s"gradient is ${dfdx}")
+          val scale = ev.fromType[Double](gradientClipMax / dfdxNorm2)
+          dfdx.mul(scale)
+        }
       }
-    } else {
-      logger.info(s"[Iteration ${state("neval")}] " +
-        s" current dfdx.norm(2) = ${dfdxNorm2} ")
+//      state("historyCounter") = historyCounter + 1
+//    }
+      val afterNorm2 = ev.toType[Double](dfdx.norm(2))
+      if (afterNorm2 != dfdxNorm2) {
+        logger.info(s"[Iteration ${state("neval")}] Normalize this gradient," +
+          s" current dfdx.norm(2) = ${afterNorm2}")
+        logger.warn(s"gradient is ${dfdx}")
+      }
     }
 
     if (wd != 0 || wds != null) {

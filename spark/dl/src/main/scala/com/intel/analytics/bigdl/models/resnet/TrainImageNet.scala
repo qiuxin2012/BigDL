@@ -54,7 +54,7 @@ object TrainImageNet {
       Engine.init
 
       val batchSize = param.batchSize
-      val (imageSize, lrSchedule, maxEpoch, dataSet) =
+      val (imageSize, dataSetType, maxEpoch, dataSet) =
         (224, DatasetType.ImageNet, 90, ImageNetDataSet)
 
       val trainDataSet = dataSet.trainDataSet(param.folder + "/train", sc, imageSize, batchSize)
@@ -68,7 +68,7 @@ object TrainImageNet {
       } else {
         val curModel =
           ResNet(classNum = param.classes, T("shortcutType" -> shortcut, "depth" -> param.depth,
-          "optnet" -> param.optnet))
+          "optnet" -> param.optnet, "dataSet" -> dataSetType))
         if (param.optnet) {
           ResNet.shareGradInput(curModel)
         }
@@ -105,16 +105,8 @@ object TrainImageNet {
         optimizer.setCheckpoint(param.checkpoint.get, Trigger.everyEpoch)
       }
 
-      val logdir = "imagenet-resnet"
-      val appName = s"${sc.applicationId}"
-      val trainSummary = TrainSummary(logdir, appName)
-      trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
-      val validationSummary = ValidationSummary(logdir, appName)
-
       optimizer
         .setOptimMethod(optimMethod)
-        .setTrainSummary(trainSummary)
-        .setValidationSummary(validationSummary)
         .setValidation(Trigger.everyEpoch,
           validateSet, Array(new Top1Accuracy[Float], new Top5Accuracy[Float]))
         .setEndWhen(Trigger.maxEpoch(maxEpoch))

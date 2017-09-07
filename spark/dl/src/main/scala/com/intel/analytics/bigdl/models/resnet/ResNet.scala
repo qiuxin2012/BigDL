@@ -152,8 +152,7 @@ object ResNet {
     val depth = opt.get("depth").getOrElse(18)
     val shortCutType = opt.get("shortcutType")
     val shortcutType = shortCutType.getOrElse(ShortcutType.B).asInstanceOf[ShortcutType]
-    val dataSet = opt.get("dataset")
-    val dataset = dataSet.getOrElse(DatasetType.CIFAR10).asInstanceOf[DatasetType]
+    val dataSet = opt.getOrElse[DatasetType]("dataSet", DatasetType.CIFAR10)
     val optnet = opt.get("optnet").getOrElse(true)
 
     def shortcut(nInputPlane: Int, nOutputPlane: Int, stride: Int): Module[Float] = {
@@ -226,7 +225,7 @@ object ResNet {
     }
 
     val model = Sequential()
-    if (dataset == DatasetType.ImageNet) {
+    if (dataSet == DatasetType.ImageNet) {
       val cfg = Map(
         18 -> ((2, 2, 2, 2), 512,
           basicBlock: (Int, Int) => Module[Float]),
@@ -259,7 +258,7 @@ object ResNet {
         .add(SpatialAveragePooling(7, 7, 1, 1))
         .add(View(nFeatures).setNumInputDims(3))
         .add(Linear(nFeatures, classNum, true, L2Regularizer(1e-4), L2Regularizer(1e-4)))
-    } else if (dataset == DatasetType.CIFAR10) {
+    } else if (dataSet == DatasetType.CIFAR10) {
       require((depth - 2)%6 == 0,
         "depth should be one of 20, 32, 44, 56, 110, 1202")
       val n = (depth-2)/6
@@ -276,7 +275,7 @@ object ResNet {
       model.add(View(64).setNumInputDims(3))
       model.add(Linear(64, 10))
     } else {
-      throw new IllegalArgumentException(s"Invalid dataset ${dataset}")
+      throw new IllegalArgumentException(s"Invalid dataset ${dataSet}")
     }
     model
   }

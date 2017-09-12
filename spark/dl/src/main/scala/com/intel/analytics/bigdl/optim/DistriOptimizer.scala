@@ -162,7 +162,8 @@ object DistriOptimizer {
       metrics.set("get weights average", 0.0, sc, partitionNum)
       metrics.set("put gradient", 0.0, sc, Engine.nodeNumber())
       metrics.set("aggregrateGradientParition average executor", 0.0, sc, Engine.nodeNumber())
-      metrics.set("compute weight average", 0.0, sc, Engine.nodeNumber())
+      metrics.set("compute gradient average", 0.0, sc, Engine.nodeNumber())
+      metrics.set("update weights average", 0.0, sc, Engine.nodeNumber())
       metrics.set("send weights average", 0.0, sc, Engine.nodeNumber())
 
       val driverMetrics = metrics

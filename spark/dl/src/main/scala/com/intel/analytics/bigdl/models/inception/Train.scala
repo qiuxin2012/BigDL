@@ -111,8 +111,7 @@ object TrainInceptionV1 {
           sgd.setState(T(
             "epoch" -> resumeEpoch,
             "neval" -> neval,
-            "evalCounter" -> (neval - 1)        .setTrainSummary(trainSummary)
-        .setValidationSummary(validationSummary)
+            "evalCounter" -> (neval - 1)
           ))
         }
         sgd

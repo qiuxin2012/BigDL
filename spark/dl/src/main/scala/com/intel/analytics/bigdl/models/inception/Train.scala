@@ -47,7 +47,8 @@ object TrainInceptionV1 {
       val imageSize = 224
       val conf = Engine.createSparkConf()
         .setAppName(s"BigDL InceptionV1 Train Example batchSize" +
-          s" ${param.batchSize} with global gradientClip${param.gradientClipMax}")
+          s" ${param.batchSize} with global gradientClip${param.gradientClipMax}" +
+          s" maxEpoch ${param.maxEpoch}")
         .set("spark.task.maxFailures", "1")
       val sc = new SparkContext(conf)
       Engine.init
@@ -110,7 +111,8 @@ object TrainInceptionV1 {
           sgd.setState(T(
             "epoch" -> resumeEpoch,
             "neval" -> neval,
-            "evalCounter" -> (neval - 1)
+            "evalCounter" -> (neval - 1)        .setTrainSummary(trainSummary)
+        .setValidationSummary(validationSummary)
           ))
         }
         sgd
@@ -145,18 +147,8 @@ object TrainInceptionV1 {
         optimizer.overWriteCheckpoint()
       }
 
-      val logdir = "imagenet"
-      val appName = s"${sc.applicationId}"
-      val trainSummary = TrainSummary(logdir, appName)
-      trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
-      trainSummary.setSummaryTrigger("gradientNorm2", Trigger.severalIteration(1))
-      trainSummary.setSummaryTrigger("Parameters", Trigger.severalIteration(10))
-      val validationSummary = ValidationSummary(logdir, appName)
-
       optimizer
         .setOptimMethod(optimMethod)
-        .setTrainSummary(trainSummary)
-        .setValidationSummary(validationSummary)
         .setValidation(testTrigger,
           valSet, Array(new Top1Accuracy[Float], new Top5Accuracy[Float]))
         .setEndWhen(endTrigger)

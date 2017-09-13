@@ -499,20 +499,24 @@ object DistriOptimizer {
               trainSummary.addHistogram(
                 s"$moduleName/$paramName", paramTable[Tensor[T]](paramName), currentIteration)
             }
-            trainSummary.addScalar(
-              s"${moduleName}_gradWeight_norm2",
+            if (paramTable.contains("weight")) {
+              trainSummary.addScalar(
+                s"${moduleName}_gradWeight_norm2",
                 ev.toType[Float](paramTable[Tensor[T]]("gradWeight").norm(2)), currentIteration)
-            trainSummary.addScalar(
-              s"${moduleName}_gradBias_norm2",
+
+              trainSummary.addScalar(
+                s"${moduleName}_weight_norm2",
+                ev.toType[Float](paramTable[Tensor[T]]("weight").norm(2)), currentIteration)
+            }
+            if (paramTable.contains("bias")) {
+              trainSummary.addScalar(
+                s"${moduleName}_gradBias_norm2",
                 ev.toType[Float](paramTable[Tensor[T]]("gradBias").norm(2)), currentIteration)
-            trainSummary.addScalar(
-              s"${moduleName}_weight_norm2",
-                ev.toType[Float](paramTable[Tensor[T]]("weight").norm(2)) /
-                ev.toType[Float](paramTable[Tensor[T]]("gradWeight").norm(2)), currentIteration)
-            trainSummary.addScalar(
-              s"${moduleName}_bias_norm2",
-                ev.toType[Float](paramTable[Tensor[T]]("bias").norm(2)) /
-                ev.toType[Float](paramTable[Tensor[T]]("gradBias").norm(2)), currentIteration)
+
+              trainSummary.addScalar(
+                s"${moduleName}_bias_norm2",
+                ev.toType[Float](paramTable[Tensor[T]]("bias").norm(2)), currentIteration)
+            }
           }))
       }
       val scalarTrigger = trainSummary.getScalarTriggers()

@@ -486,6 +486,11 @@ object DistriOptimizer {
       if (parametersTrigger.isDefined && parametersTrigger.get(driverState)) {
         val model = getModel(models, parameters)
         val parametersTable = model.getParametersTable()
+        val gradParamters = model.getParameters()._2
+        trainSummary.addScalar("gradientMax",
+          ev.toType[Float](gradParamters.max()), currentIteration)
+        trainSummary.addScalar("gradientMin",
+          ev.toType[Float](gradParamters.min()), currentIteration)
         // Parallelize to create Histogram.
         Engine.default.invokeAndWait(
           parametersTable.keySet.toSeq.map(moduleName => () => {

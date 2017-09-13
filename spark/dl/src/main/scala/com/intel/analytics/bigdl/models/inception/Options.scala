@@ -39,7 +39,8 @@ object Options {
     weightDecay: Double = 0.0001,
     checkpointIteration: Int = 620,
     graphModel: Boolean = false,
-    gradientClipMax: Double = 0
+    gradientMax: Double = Double.MaxValue,
+    gradientMin: Double = Double.MinValue
   )
 
   val trainParser = new OptionParser[TrainParams]("BigDL Inception Example") {
@@ -96,9 +97,12 @@ object Options {
     opt[Unit]('g', "graphModel")
       .text("use graph model")
       .action((x, c) => c.copy(graphModel = true))
-    opt[Double]("gradientClipMax")
-      .text("max norm2 of gradient clipping")
-      .action((x, c) => c.copy(gradientClipMax = x))
+    opt[Double]("gradientMax")
+      .text("maximum gradient during the training")
+      .action((x, c) => c.copy(gradientMax = x))
+    opt[Double]("gradientMin")
+      .text("minimum gradient during the training")
+      .action((x, c) => c.copy(gradientMin = x))
   }
 
   case class TestParams(

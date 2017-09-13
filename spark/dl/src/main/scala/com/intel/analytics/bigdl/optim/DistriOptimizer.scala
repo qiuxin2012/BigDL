@@ -292,35 +292,23 @@ object DistriOptimizer {
         numFinishedModelUpdates >= driverSubModelNum * (1.0 - maxDropPercentage)) {
         // enough records were processed for this batch, so update the model
         val value = lossSum.value / numFinishedModelUpdates
-
-        val gradientSumSquare = models.mapPartitions(modelIter => {
+        models.mapPartitions { modelIter =>
+          val modelCache = modelIter.next()
           val getG = System.nanoTime()
           parameters.aggregateGradientPartition()
           driverMetrics.add("aggregrateGradientParition average executor",
             System.nanoTime() - getG)
-          val time = System.nanoTime()
+          var time = System.nanoTime()
           parameters.gradientPartition.div(ev.fromType(numFinishedModelUpdates))
-          driverMetrics.add("compute gradient average", System.nanoTime() - time)
-          Iterator.single(ev.toType[Double](parameters.gradientPartition.sumSquare()))
-        }).reduce(_ + _)
-
-        val gradientNorm2 = math.sqrt(gradientSumSquare).toFloat
-        driverState("gradientNorm2") = gradientNorm2
-
-        models.mapPartitions { modelIter =>
-          val modelCache = modelIter.next()
-          modelCache.optimMethod.state.update("gradientNorm2", gradientNorm2)
           modelCache.optimMethod.state.update("epoch", driverState[Int]("epoch"))
           modelCache.optimMethod.state.update("neval", driverState[Int]("neval"))
           modelCache.optimMethod.state.update("Loss", driverState[Float]("Loss"))
           if (validationMethods.isDefined) {
             modelCache.optimMethod.state.update("score", driverState[Float]("score"))
           }
-          var time = System.nanoTime()
           modelCache.optimMethod.optimize(_ => (ev.fromType(value), parameters.gradientPartition),
             parameters.weightPartition)
-          driverMetrics.add("update weights average", System.nanoTime() - time)
-
+          driverMetrics.add("compute weight average", System.nanoTime() - time)
           time = System.nanoTime()
           parameters.sendWeightPartition()
           driverMetrics.add("send weights average", System.nanoTime() - time)

@@ -47,7 +47,7 @@ object TrainInceptionV1 {
       val imageSize = 224
       val conf = Engine.createSparkConf()
         .setAppName(s"BigDL InceptionV1 Train Example batchSize" +
-          s" ${param.batchSize} with global gradientClip${param.gradientClipMax}")
+          s" ${param.batchSize} with gradientMax${param.gradientMax} min${param.gradientMin}")
         .set("spark.task.maxFailures", "1")
       val sc = new SparkContext(conf)
       Engine.init
@@ -103,7 +103,7 @@ object TrainInceptionV1 {
  //           SGD.EpochDecayWithWarmUp(warmUpIteration, delta, decay))
          SGD.PolyWithWarmUp(warmUpIteration, delta,
            0.5, math.ceil(1281167.toDouble / param.batchSize).toInt * param.maxEpoch.get),
-          gradientClipMax = param.gradientClipMax)
+          gradientMax = param.gradientMax, gradientMin = param.gradientMin)
         if (param.resumeEpoch.isDefined) {
           val resumeEpoch = param.resumeEpoch.get
           val neval = (resumeEpoch - 1) * iterationsPerEpoch + 1
@@ -149,7 +149,6 @@ object TrainInceptionV1 {
       val appName = s"${sc.applicationId}"
       val trainSummary = TrainSummary(logdir, appName)
       trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
-      trainSummary.setSummaryTrigger("gradientNorm2", Trigger.severalIteration(1))
       trainSummary.setSummaryTrigger("Parameters", Trigger.severalIteration(10))
       val validationSummary = ValidationSummary(logdir, appName)
 

@@ -151,6 +151,10 @@ object SparseTensorBLAS {
     val ArowIndices = A._indices(A.indices_order(0))
     val AcolIndices = A._indices(A.indices_order(1))
 
+    require(ArowIndices.length == AcolIndices.length, s"A: row indices number " +
+      s"${ArowIndices.length()} is not equal to col indices number ${AcolIndices.length()}")
+    require(ArowIndices.length == Avals.length, s"A: indices length ${ArowIndices.length()}" +
+      s"is not equal to values length ${Avals.length}")
     // Scale matrix first if `beta` is not equal to 0.0
     if (beta != 0.0) {
       MKL.vsscal(Cvals.length, beta, Cvals, C.storageOffset() - 1, 1)
@@ -160,25 +164,53 @@ object SparseTensorBLAS {
     var index = 0
     if (B.stride(2) == 1 && B.size(2) == B.stride(1)) {
       while (index < Avals.length) {
-        val curMA = ArowIndices(index)
-        val curKA = AcolIndices(index)
-        var n = 0
-        while (n < nB) {
-          Cvals(curMA * nB + n) += Avals(index) * Bvals(curKA * nB + n + bOffset)
-          n += 1
+        try {
+          val curMA = ArowIndices(index)
+          val curKA = AcolIndices(index)
+          var n = 0
+          while (n < nB) {
+            Cvals(curMA * nB + n) += Avals(index) * Bvals(curKA * nB + n + bOffset)
+            n += 1
+          }
+          index += 1
+        } catch {
+          case e: ArrayIndexOutOfBoundsException =>
+            println("SparseTensorBLAS ArrayIndexOutOfBoundsException at 164")
+            println("Index = " + index)
+            println("ArowIndices.length() " + ArowIndices.length())
+            println("AcolIndices.length() " + AcolIndices.length())
+            println("Avals.length " + Avals.length)
+            if (Avals.length != ArowIndices.length()) {
+              println("sparse matrix A is not correct~")
+              // println("A.storage() = " + Avals)
+              println("input shape: " + A.nElement() + " " + A.size())
+            }
         }
-        index += 1
       }
     } else {
       while (index < Avals.length) {
-        val curMA = ArowIndices(index)
-        val curKA = AcolIndices(index)
-        var n = 0
-        while (n < nB) {
-          Cvals(curMA * nB + n + cOffset) += Avals(index) * Bvals(curKA + n * kB + bOffset)
-          n += 1
+        try {
+          val curMA = ArowIndices(index)
+          val curKA = AcolIndices(index)
+          var n = 0
+          while (n < nB) {
+            Cvals(curMA * nB + n + cOffset) += Avals(index) * Bvals(curKA + n * kB + bOffset)
+            n += 1
+          }
+          index += 1
+        } catch {
+          case e: ArrayIndexOutOfBoundsException =>
+            println("SparseTensorBLAS ArrayIndexOutOfBoundsException at 188")
+            println("Index = " + index)
+            println("ArowIndices.length() " + ArowIndices.length())
+            println("AcolIndices.length() " + AcolIndices.length())
+            println("Avals.length " + Avals.length)
+            if (Avals.length != ArowIndices.length()) {
+              println("sparse matrix A is not correct~")
+              // println("A.storage() = " + Avals)
+              println("input shape: " + A.nElement() + " " + A.size())
+            }
         }
-        index += 1
       }
 
     }
@@ -203,10 +235,14 @@ object SparseTensorBLAS {
     val BrowIndices = B._indices(B.indices_order(0))
     val BcolIndices = B._indices(B.indices_order(1))
 
+    require(BrowIndices.length == BcolIndices.length, s"B: row indices number " +
+      s"${BrowIndices.length()} is not equal to col indices number ${BcolIndices.length()}")
+    require(BrowIndices.length == Bvals.length, s"B: indices length ${BrowIndices.length()}" +
+      s"is not equal to values length ${Bvals.length}")
     // Scale matrix first if `beta` is not equal to 0.0
-    if (beta != 0.0) {
-      MKL.vsscal(Cvals.length, beta, Cvals, C.storageOffset() - 1, 1)
-    }
+//    if (beta != 0.0) {
+//      MKL.vsscal(Cvals.length, beta, Cvals, C.storageOffset() - 1, 1)
+//    }
     // Perform matrix multiplication and add to C. The rows of B are multiplied by the columns of
     // A, and added to C.
     var index = 0

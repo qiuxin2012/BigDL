@@ -45,16 +45,58 @@ class SparseLinear[T: ClassTag](
     val nElement = output.nElement
     val t = Array(nFrame, weight.size(1))
     output.resize(t)
+    // println(s"output.resize(${nFrame}, ${weight.size(1)}) = " + output.size().mkString("x"))
     if (output.nElement() != nElement) {
       output.zero()
     }
 
     if (addBuffer.nElement() != nFrame) {
+      // println(s"addBuffer.resize(Array(${nFrame})).fill(1)")
       addBuffer.resize(Array(nFrame)).fill(ev.one)
     }
 
-    SparseTensorBLAS.coomm(ev.one, input, weight.t, ev.zero, output)
-    if (withBias) output.addr(ev.one, addBuffer, bias)
+    try {
+      SparseTensorBLAS.coomm(ev.one, input, weight.t, ev.zero, output)
+    } catch {
+      case e: ArrayIndexOutOfBoundsException =>
+        println("SparseLinear: SparseTensorBLAS.coomm ArrayIndexOutOfBoundsException 59")
+        println("input = " + input.size().mkString("x"))
+        println("input.nElement " + input.nElement())
+        for (i <- input.indices().indices)
+          print(input.indices()(i).length() + " ")
+        println()
+        println("weight.t = " + weight.t.size().mkString("x"))
+        println("weight.nElement " + weight.t.nElement())
+        println("output = " + output.size().mkString("x"))
+        println("output.nElement " + output.nElement())
+      case f: IllegalArgumentException =>
+        println("SparseLinear: SparseTensorBLAS.coomm IllegalArgumentException 59")
+        println("input = " + input.size().mkString("x"))
+        println("input.nElement " + input.nElement())
+        for (i <- input.indices().indices)
+          print(input.indices()(i).length() + " ")
+        println()
+        println("weight.t = " + weight.t.size().mkString("x"))
+        println("weight.nElement " + weight.t.nElement())
+        println("output = " + output.size().mkString("x"))
+        println("output.nElement " + output.nElement())
+    }
+    if (withBias) {
+      try {
+        output.addr(ev.one, addBuffer, bias)
+      } catch {
+        case e: IllegalArgumentException =>
+          println("SparseLinear updateOutput: Illegal Argument Exception in SparseLinear:59")
+          println(s"addBuffer.resize(Array(${nFrame})).fill(1)")
+          println("input = " + input.size().mkString("x"))
+          println(s"output.resize(${nFrame}, ${weight.size(1)})")
+          println("output = (nFrame, weight.size(1)) = " +
+            output.size().mkString("x") + s" (${nFrame}, ${weight.size(1)})")
+          println("addBuffer = " + addBuffer.size().mkString("x"))
+          println("addBuffer.nElement() != nFrame " + (addBuffer.nElement() != nFrame))
+          println("bias = " + bias.size().mkString("x"))
+      }
+    }
     output
   }
 
@@ -90,12 +132,27 @@ class SparseLinear[T: ClassTag](
     }
 
     if (scaleW != 0) {
-      SparseTensorMath.addmm(gradWeight, ev.one, gradWeight,
-        ev.fromType[Double](scaleW), gradOutput.t, input)
+      try {
+        SparseTensorMath.addmm(gradWeight, ev.one, gradWeight,
+          ev.fromType[Double](scaleW), gradOutput.t, input)
+      } catch {
+        case e: IllegalArgumentException =>
+          println("SparseLinear updateOutput: Illegal Argument Exception in SparseLinear:130")
+          println("gradWeight = " + gradWeight.size().mkString("x"))
+          println("gradOutput.t.size = " + gradOutput.t.size().mkString("x"))
+          println("input.size = " + input.size().mkString("x"))
+      }
     }
 
     if (withBias && scaleB != 0) {
-      gradBias.addmv(ev.fromType[Double](scaleB), gradOutput.t, addBuffer)
+      try {
+        gradBias.addmv(ev.fromType[Double](scaleB), gradOutput.t, addBuffer)
+      } catch {
+        case e: IllegalArgumentException =>
+          println("SparseLinear updateOutput: Illegal Argument Exception in SparseLinear:142")
+          println("addBuffer = " + addBuffer.size().mkString("x"))
+          println("gradOutput.t.size = " + gradOutput.t.size().mkString("x"))
+      }
     }
 
     if (null != wRegularizer && scaleW != 0) {

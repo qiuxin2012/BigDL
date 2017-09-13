@@ -43,6 +43,8 @@ private[tensor] class SparseTensor[@specialized(Float, Double) T: ClassTag](
 
   nDimension = _shape.length
 
+  override def indices(): Array[Storage[Int]] = _indices
+
   /**
    * A shortcut of nDimension()
    *
@@ -501,7 +503,17 @@ private[tensor] class SparseTensor[@specialized(Float, Double) T: ClassTag](
    * @return
    */
   override def set(): Tensor[T] = {
-    throw new UnsupportedOperationException(s"Unimplemented")
+    if (this._indices != null) {
+      for (ind <- this._indices)
+          ind.resize(0)
+    }
+    if (this._values != null) {
+      this._values.resize(0)
+    }
+    this._nElement = 0
+    this._storageOffset = 0
+    this._shape = Array()
+    this
   }
 
   /**
@@ -776,7 +788,7 @@ override def save(path: String, overWrite: Boolean): SparseTensor.this.type = {
    *
    * @return
    */
-override def getTensorNumeric(): TensorNumeric[T] = {
+  override def getTensorNumeric(): TensorNumeric[T] = {
     throw new UnsupportedOperationException(s"Unimplemented")
   }
 
@@ -789,7 +801,9 @@ override def getTensorNumeric(): TensorNumeric[T] = {
         _indices = _indices.slice(0, size.length)
         _indices.foreach(_.resize(nElement))
       } else {
-        _indices ++= new Array[Storage[Int]](size.length - _indices.length)
+        val _addIndices = new Array[Storage[Int]](size.length - _indices.length)
+        for (i <- _addIndices.indices) _addIndices(i) = Storage[Int](nElement)
+        _indices ++= _addIndices
         _indices.foreach(_.resize(nElement))
       }
       _storageOffset = 0
@@ -806,16 +820,18 @@ override def getTensorNumeric(): TensorNumeric[T] = {
       tensors: Seq[Tensor[T]],
       res: Tensor[T]): Tensor[T] = {
     require(dim == 1 || dim == 2)
-    val size = tensors.head.size()
-    require(size.length == 2)
+    var size = tensors.head.size()
+    require(size.length <= 2, "Dimension larger than 2 are not supported yet!")
     tensors.foreach{tensor =>
       // todo: check size
       require(tensor.isInstanceOf[SparseTensor[T]])
       require(tensor.dim() == size.length)
     }
+    val dim1Concat = if (size.length == 1 && dim == 1) true else false
+    if (dim1Concat) size = Array(1) ++ size
     var i = 1
     while (i < tensors.length) {
-      size(dim - 1) += tensors(i).size(dim)
+      size(dim - 1) += (if (dim1Concat) 1 else tensors(i).size(dim))
       i += 1
     }
     val totalLength = tensors.map(_.nElement()).sum
@@ -823,9 +839,59 @@ override def getTensorNumeric(): TensorNumeric[T] = {
     val result = if (null == res) {
       SparseTensor(size, totalLength)
     } else {
-      res.asInstanceOf[SparseTensor[T]]
+      res.resize(size, totalLength).asInstanceOf[SparseTensor[T]]
     }
-    concat(dim, tensors.map(_.asInstanceOf[SparseTensor[T]]), result)
+    if (dim1Concat) {
+      concat(tensors.map(_.asInstanceOf[SparseTensor[T]]), result)
+    }
+    else {
+      concat(dim, tensors.map(_.asInstanceOf[SparseTensor[T]]), result)
+    }
+  }
+
+  /**
+   * Concatenate a sequence of SparseTensor of 1-dim to 2-dim SparseTensor.
+ *
+   * @param tensors a sequence of tensors
+   * @param res the resulted 2-dim SparseTensor
+   * @return res
+   */
+  private def concat(
+      tensors: Seq[SparseTensor[T]],
+      res: SparseTensor[T]): Tensor[T] = {
+    val numOfIndices = res.dim()  // usually is 2
+    require(tensors.head.dim() == 1, "Not suitable for this interface.")
+    var i, offset, dimOffset = 0
+    while (i < tensors.length) {
+      val currentTensor = tensors(i)
+      val curLength = currentTensor.nElement()
+      val curTensorOffset = currentTensor.storageOffset() - 1
+      // copy to concat _values
+      ev.arraycopy(currentTensor.storage().array(), curTensorOffset,
+        res.storage().array(), offset, curLength)
+      // make new Indices
+      var indicesIndex = 0
+      while (indicesIndex < numOfIndices) {
+        if (indicesIndex == 0) {
+          val storage = Storage[Int](curLength)
+          val storageArray = storage.array()
+          for (j <- 0 until curLength) storageArray(j) = dimOffset
+          System.arraycopy(storageArray, 0, res._indices(indicesIndex).array(),
+            offset, curLength)
+        }
+        else {
+          // copy directly
+          System.arraycopy(currentTensor._indices(indicesIndex - 1).array(),
+            curTensorOffset, res._indices(indicesIndex).array(),
+            offset, curLength)
+        }
+        indicesIndex += 1
+      }
+      offset += curLength
+      dimOffset += 1
+      i += 1
+    }
+    res
   }
 
   private def concat(
@@ -891,11 +957,33 @@ override def getTensorNumeric(): TensorNumeric[T] = {
 
             if (0 != curLength) {
               end += curLength
-
-              // copy values
-              ev.arraycopy(currentTensor.storage().array(), tensorsOffset(index),
-                res.storage().array(), start, curLength)
-
+              try {
+                // copy values
+                ev.arraycopy(currentTensor.storage().array(), tensorsOffset(index),
+                  res.storage().array(), start, curLength)
+              } catch {
+                case e: ArrayIndexOutOfBoundsException =>
+                  println("SparseTensor: ArrayIndexOutOfBoundsException: SparseTensor:962")
+                  println("currentTensor " + index + " = " + currentTensor.size().mkString("x"))
+                  println("res.size() = " + res.size().mkString("x"))
+                  println("start = " + start)
+                  println("curLength = " + curLength)
+                  println("res.storage().array().length " + res.storage().array().length)
+                  println("currentTensor.storage().array().length "
+                    + currentTensor.storage().array().length)
+                case f: NullPointerException =>
+                  println("SparseTensor: NullPointerException: SparseTensor:962")
+                  println("currentTensor " + index + " = " + currentTensor.size().mkString("x"))
+                  println("res.size() = " +
+                    (if (res.storage() != null) res.size().mkString("x") else "NULL"))
+                  println("start = " + start)
+                  println("curLength = " + curLength)
+                  if (res.storage() != null) {
+                    println("res.storage().array().length " + res.storage().array().length)
+                  }
+                  println("currentTensor.storage().array().length "
+                    + currentTensor.storage().array().length)
+              }
               // copy indices
               var indicesIndex = 0
               while (indicesIndex < numOfIndices) {
@@ -903,14 +991,54 @@ override def getTensorNumeric(): TensorNumeric[T] = {
                 val resultIndicesArray = res._indices(indicesIndex).array()
                 if (indicesIndex != dim - 1 || index == 0) {
                   // copy directly
-                  System.arraycopy(currentTensor._indices(indicesIndex).array(),
-                    tensorsOffset(index), res._indices(indicesIndex).array(), start, curLength)
+                  try {
+                    System.arraycopy(currentTensor._indices(indicesIndex).array(),
+                      tensorsOffset(index), res._indices(indicesIndex).array(), start, curLength)
+                  } catch {
+                    case e: ArrayIndexOutOfBoundsException =>
+                      println("SparseTensor: ArrayIndexOutOfBoundsException: SparseTensor:982")
+                      println("currentTensor " + index + " = " +
+                        currentTensor.size().mkString("x"))
+                      println("res.size() = " + res.size().mkString("x"))
+                      println("indicesIndexArray.length = " +
+                        currentTensor._indices(indicesIndex).array().length)
+                      assert(currentTensor._indices.length == 2)
+                      println(s"tensorsOffset(${index}) " + tensorsOffset(index))
+                      println("start = " + start)
+                      assert(res._indices.length == 2)
+                      println(s"res._indices(${indicesIndex}).array().length "
+                        + res._indices(indicesIndex).array().length)
+                      println(s"res._indices(${1-indicesIndex}).array().length "
+                        + res._indices(1-indicesIndex).array().length)
+                      println("curLength " + curLength)
+                  }
                 } else {
                   // add size
                   var i = 0
                   while (i < curLength) {
-                    resultIndicesArray(start + i) = indicesIndexArray(tensorsOffset(index) + i) +
-                      offset
+                    try {
+                      resultIndicesArray(start + i) = indicesIndexArray(tensorsOffset(index) + i) +
+                        offset
+                    } catch {
+                      case e: ArrayIndexOutOfBoundsException =>
+                        println("SparseTensor: ArrayIndexOutOfBoundsException: SparseTensor:1004")
+                        println("indicesIndex = " + indicesIndex)
+                        println("start + i = " + (start + i))
+                        println("tensorsOffset(index) + i = " + (tensorsOffset(index) + i))
+                        println("currentTensor " + indicesIndex + " = " +
+                          currentTensor.size().mkString("x"))
+                        println("res.size() = " + res.size().mkString("x"))
+                        println("indicesIndexArray " + indicesIndexArray.length)
+                        assert(currentTensor._indices.length == 2)
+                        println(s"tensorsOffset(${index}) + ${i}(i) = " +
+                          (tensorsOffset(index) + i))
+                        assert(res._indices.length == 2)
+                        println(s"res._indices(${indicesIndex}).array().length "
+                          + resultIndicesArray.length)
+                        println(s"res._indices(${1-indicesIndex}).array().length "
+                          + res._indices(1-indicesIndex).array().length)
+                        println("curLength " + curLength)
+                    }
                     i += 1
                   }
                 }
@@ -1535,8 +1663,8 @@ override def getTensorNumeric(): TensorNumeric[T] = {
   /**
    * Perform a batch matrix matrix multiplication of matrices and stored in batch1 and batch2
    * with batch add. batch1 and batch2 must be 3D Tensors each containing the same number of
-   * matrices. If batch1 is a b × n × m Tensor, batch2 a b × m × p Tensor, res will be a
-   * b × n × p Tensor.
+   * matrices. If batch1 is a b ?? n ?? m Tensor, batch2 a b ?? m ?? p Tensor, res will be a
+   * b ?? n ?? p Tensor.
    *
    * In other words,
    * res_i = (beta * M_i) + (alpha * batch1_i * batch2_i)
@@ -1852,6 +1980,31 @@ override def exp(): Tensor[T] = {
       _values.array().deep == other._values.array().deep &&
       this._shape.deep == other._shape.deep &&
       this._nElement == other._nElement
+  }
+
+  override def toString(): String = {
+    this.nDimension match {
+      case 0 => s"[${this.getClass.getName} with no dimension]"
+      case 1 =>
+        val sb = new StringBuilder
+        val indices = _indices
+        val values = _values
+        for (i <- 0 until this.nElement)
+          sb.append(indices(0)(i) + " : " + values(i)).append('\n')
+
+        s"${sb}[${this.getClass.getName} of size ${this.size(1)}]"
+      case 2 =>
+        val sb = new StringBuilder
+        val indices = _indices
+        val values = _values.array()
+        for (i <- 0 until this.nElement)
+          sb.append("(" + indices(0).array()(i) + ", " + indices(1).array()(i)
+            + ") : " + values(i)).append('\n')
+
+        s"${sb}[${this.getClass.getName} of size ${this.size(1)}x${this.size(2)}]"
+      case _ =>
+        throw new UnsupportedOperationException(s"Unimplemented")
+    }
   }
 
   override def hashCode(): Int = {

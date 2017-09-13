@@ -95,8 +95,7 @@ class MiniBatchSpec extends FlatSpec with Matchers {
     val miniBatch = new SparseTensorMiniBatch[Float](Array(Tensor.sparse(Array(4), 1), Tensor(5)),
       Array(Tensor(1)))
     miniBatch.set(Array(sample1, sample2))
-    println()
+    println(miniBatch.size())
   }
-
 
 }

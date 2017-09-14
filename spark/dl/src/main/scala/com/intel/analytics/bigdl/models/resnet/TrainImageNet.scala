@@ -34,12 +34,12 @@ object TrainImageNet {
   import Utils._
 
   def imageNetDecay(epoch: Int): Double = {
-    if (epoch > 30) {
-      1
+    if (epoch > 80) {
+      3
     } else if (epoch > 60) {
       2
-    } else if (epoch > 80) {
-      3
+    } else if (epoch > 30) {
+      1
     } else {
       0.0
     }

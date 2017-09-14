@@ -20,6 +20,30 @@ import org.scalatest.{FlatSpec, Matchers}
 import com.intel.analytics.bigdl.numeric.NumericFloat
 
 class SparseTensorSpec  extends FlatSpec with Matchers {
+  "concat" should "return right result on dim-1 concatenation" in {
+    val sTensor1 = Tensor.sparse(Tensor(3).range(1, 3, 1))
+    val sTensor2 = Tensor.sparse(Tensor(3).range(4, 6, 1))
+    val result = Tensor.sparse(Array(2, 3), 6)
+    result.concat(1, Array(sTensor1, sTensor2), result)
+    val expectedResult = Tensor(2, 3)
+    expectedResult.narrow(1, 1, 1).range(1, 3, 1)
+    expectedResult.narrow(1, 2, 1).range(4, 6, 1)
+    Tensor.dense(result) should be (expectedResult)
+  }
+
+  "concat" should "return right result on dim-1 concatenation 2" in {
+    val sTensor1 = Tensor.sparse(Tensor(3).setValue(2, 1))
+    val sTensor2 = Tensor.sparse(Tensor(3).setValue(3, 3))
+    val sTensor3 = Tensor.sparse(Tensor(3).setValue(1, 2))
+    val result = Tensor.sparse(Array(3, 3), 3)
+    result.concat(1, Array(sTensor1, sTensor2, sTensor3), result)
+    val expectedResult = Tensor(3, 3)
+    expectedResult.setValue(1, 2, 1)
+    expectedResult.setValue(2, 3, 3)
+    expectedResult.setValue(3, 1, 2)
+    Tensor.dense(result) should be (expectedResult)
+  }
+
   "concat" should "return right result" in {
     val sTensor1 = Tensor.sparse(Tensor(3, 3).range(1, 9, 1))
     val sTensor2 = Tensor.sparse(Tensor(3, 2).range(10, 15, 1))

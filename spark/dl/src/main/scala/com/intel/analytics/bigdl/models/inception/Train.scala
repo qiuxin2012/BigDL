@@ -48,7 +48,7 @@ object TrainInceptionV1 {
       val conf = Engine.createSparkConf()
         .setAppName(s"BigDL InceptionV1 Train Example batchSize" +
           s" ${param.batchSize} with global gradientClip${param.gradientClipMax}" +
-          s" maxEpoch ${param.maxEpoch}")
+          s" maxEpoch ${param.maxEpoch.get}")
         .set("spark.task.maxFailures", "1")
       val sc = new SparkContext(conf)
       Engine.init

@@ -62,8 +62,8 @@ object SparseTensorBLAS {
     val Arows = A._indices(A.indices_order(0))
     val Acols = A._indices(A.indices_order(1))
 
-    if (beta != 1) {
-      MKL.vdscal(yValues.size, beta, yValues, 0, 1)
+    if (beta != 1.0) {
+      y.mul(beta)
     }
     // Perform matrix-vector multiplication and add to y
     var valueCounter = 0
@@ -71,7 +71,7 @@ object SparseTensorBLAS {
       val Arow = Arows(valueCounter)
       val Acol = Acols(valueCounter)
       val Aval = Avals(valueCounter)
-      yValues(Arow - 1 + yOffset) += Aval * alpha * xValues(Acol - 1 + xOffset)
+      yValues(Arow + yOffset) += Aval * alpha * xValues(Acol + xOffset)
       valueCounter += 1
     }
   }
@@ -93,8 +93,8 @@ object SparseTensorBLAS {
     val Arows = A._indices(A.indices_order(0))
     val Acols = A._indices(A.indices_order(1))
 
-    if (beta != 1) {
-      MKL.vsscal(yValues.size, beta, yValues, 0, 1)
+    if (beta != 1.0) {
+      y.mul(beta)
     }
     // Perform matrix-vector multiplication and add to y
     var valueCounter = 0
@@ -102,7 +102,7 @@ object SparseTensorBLAS {
       val Arow = Arows(valueCounter)
       val Acol = Acols(valueCounter)
       val Aval = Avals(valueCounter)
-      yValues(Arow-1) += Aval * alpha * xValues(Acol-1)
+      yValues(Arow) += Aval * alpha * xValues(Acol)
       valueCounter += 1
     }
   }
@@ -151,9 +151,14 @@ object SparseTensorBLAS {
     val ArowIndices = A._indices(A.indices_order(0))
     val AcolIndices = A._indices(A.indices_order(1))
 
+    require(ArowIndices.length == AcolIndices.length, s"A: row indices number " +
+      s"${ArowIndices.length()} is not equal to col indices number ${AcolIndices.length()}")
+    require(ArowIndices.length == Avals.length, s"A: indices length ${ArowIndices.length()}" +
+      s"is not equal to values length ${Avals.length}")
+
     // Scale matrix first if `beta` is not equal to 0.0
-    if (beta != 0.0) {
-      MKL.vsscal(Cvals.length, beta, Cvals, C.storageOffset() - 1, 1)
+    if (beta != 1.0) {
+      C.mul(beta)
     }
     // Perform matrix multiplication and add to C. The rows of A are multiplied by the columns of
     // B, and added to C.
@@ -203,20 +208,25 @@ object SparseTensorBLAS {
     val BrowIndices = B._indices(B.indices_order(0))
     val BcolIndices = B._indices(B.indices_order(1))
 
+    require(BrowIndices.length == BcolIndices.length, s"B: row indices number " +
+      s"${BrowIndices.length()} is not equal to col indices number ${BcolIndices.length()}")
+    require(BrowIndices.length == Bvals.length, s"B: indices length ${BrowIndices.length()}" +
+      s"is not equal to values length ${Bvals.length}")
+
     // Scale matrix first if `beta` is not equal to 0.0
-    if (beta != 0.0) {
-      MKL.vsscal(Cvals.length, beta, Cvals, C.storageOffset() - 1, 1)
+    if (beta != 1.0) {
+      C.mul(beta)
     }
     // Perform matrix multiplication and add to C. The rows of B are multiplied by the columns of
     // A, and added to C.
     var index = 0
     if (A.stride(2) == 1 && A.size(2) == A.stride(1)) {
       while (index < Bvals.length) {
-        val curMB = BrowIndices(index)
-        val curKB = BcolIndices(index)
+        val curKB = BrowIndices(index)
+        val curNB = BcolIndices(index)
         var n = 0
         while (n < mA) {
-          Cvals(curMB * mA + n) += Bvals(index) * Avals(curKB * mA + n + aOffset)
+          Cvals(n * nB + curNB) += Bvals(index) * Avals(n * kA + curKB + aOffset)
           n += 1
         }
         index += 1
@@ -227,7 +237,7 @@ object SparseTensorBLAS {
         val curNB = BcolIndices(index)
         var n = 0
         while (n < mA) {
-          Cvals(n * nB + curNB + cOffset) += Bvals(index) * Avals(n + curKB * mA + aOffset)
+          Cvals(n * nB + curNB + cOffset) += Bvals(index) * Avals(n + kA * curKB + aOffset)
           n += 1
         }
         index += 1

@@ -33,26 +33,26 @@ class LogSoftMaxSpec extends FlatSpec with Matchers with BeforeAndAfter {
   "A LogSoftMax Module" should " be fast using MKL" in {
     val layer = LogSoftMax[Float]()
     layer.clearState()
+    val _subModelNumber = Engine.coreNumber()
+    val layers = Array.range(0, _subModelNumber).map(
+      i => layer.cloneModule().setName(s"LogSoftMax$i"))
     val batchSize = 20
-    val input = Tensor[Float](batchSize, 10000)
-    val gradOutput = Tensor[Float](batchSize, 10000)
-    var startTime = System.nanoTime()
-    var duration = (System.nanoTime() - startTime) / 1e9
-    var sum = 0.0
-    for (i <- 1 to 5) {
-      layer.forward(input)
-      layer.backward(input, gradOutput)
-    }
-    for (i <- 1 to 5) {
-      startTime = System.nanoTime()
-      layer.forward(input)
-      layer.backward(input, gradOutput)
-      duration = (System.nanoTime() - startTime) / 1e9
-      println(s"speed: = ${duration} seconds")
-      sum += duration
-    }
-    println(s"avg speed: = ${sum / 5}")
-    layer.clearState()
+    val input = Tensor[Float](batchSize, 10000).rand()
+    val gradOutput = Tensor[Float](batchSize, 10000).rand()
+    val startTime = System.nanoTime()
+    val timeout = Long.MaxValue
+    Engine.default.invokeAndWait2((0 until _subModelNumber).map(i =>
+      () => {
+        val localModel = layers(i)
+        for (j <- 1 to 100) {
+          val output = localModel.forward(input)
+          localModel.backward(input, gradOutput)
+        }
+        i
+      }
+    ), timeout)
+    val duration = (System.nanoTime() - startTime) / 1e9
+    println(s"total time: = ${duration}")
   }
 
   "A LogSoftMax Module " should "generate correct output" in {

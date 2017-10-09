@@ -395,7 +395,7 @@ class BigDLSessionImpl[T: ClassTag](
       }
     }
 
-    val modelBroadCast = ModelBroadcast[T].broadcast(sc, transformer)
+    val modelBroadCast = ModelBroadcast[T]().broadcast(sc, transformer)
     inputRdd.map { tensors =>
       val trans = modelBroadCast.value()
       val output = trans.forward(tensors.flatten())

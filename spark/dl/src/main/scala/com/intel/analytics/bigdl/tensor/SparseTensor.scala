@@ -2070,6 +2070,19 @@ override def exp(): Tensor[T] = {
   override def forceCopy(other: Tensor[_]): Tensor[T] = {
     throw new UnsupportedOperationException(s"Unimplemented")
   }
+
+  /**
+   * Cast the currenct tensor to a tensor with tensor numeric type D
+   * and set cast value to `castTensor`
+   *
+   * @param castTensor the cast value set to this tensor
+   * @tparam D new numeric type
+   * @return return castTensort
+   */
+  override def cast[D: ClassTag](
+       castTensor: Tensor[D])(implicit ev: TensorNumeric[D]): Tensor[D] = {
+    throw new UnsupportedOperationException(s"Unimplemented")
+  }
 }
 
 object SparseTensor{

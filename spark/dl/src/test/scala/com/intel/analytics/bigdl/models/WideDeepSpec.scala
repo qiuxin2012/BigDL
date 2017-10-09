@@ -16,7 +16,8 @@
 
 package com.intel.analytics.bigdl.models
 
-import com.intel.analytics.bigdl.models.widedeep_tutorial.{WideDeep, SparseWideDeep}
+import com.intel.analytics.bigdl.models.widedeep_tutorial.{SparseWideDeep, WideDeep}
+import com.intel.analytics.bigdl.nn.{Linear, SparseLinear}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.tensor.Tensor
@@ -134,4 +135,10 @@ class WideDeepSpec extends FlatSpec with BeforeAndAfter with Matchers {
     a shouldEqual b
   }
 
+  "test" should "return right result" in {
+//    val m = Linear(2097151, 1024)
+    val model = Linear(262144, 1024)
+    val model2 = model.cloneModule()
+//    println(model2)
+  }
 }

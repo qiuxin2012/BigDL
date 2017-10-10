@@ -45,6 +45,7 @@ class ModelBroadcast[T: ClassTag](
    * @return this
    */
   def broadcast(sc: SparkContext, model: Module[T]): this.type = {
+    if (!inference) model.getParameters() // ensure training model's parameter is compacted.
     val weightsBias = getAndClearWeightBias(model.parameters())
     broadcastModel = sc.broadcast(model)
     broadcastParameters = sc.broadcast(weightsBias)
@@ -68,11 +69,16 @@ class ModelBroadcast[T: ClassTag](
   : Array[Tensor[T]] = {
     var i = 0
     val weightsBias = new Array[Tensor[T]](parameters._1.length)
+    val storage = Storage(parameters._1(0).storage.array())
+    val isCompacted = parameters._1.map(_.nElement()).sum == storage.length()
     while (i < parameters._1.length) {
       if (parameters._1(i) != null) {
         val wb = parameters._1(i)
-        weightsBias(i) = Tensor[T](Storage(wb.storage().array()),
-          wb.storageOffset(), wb.size(), wb.stride())
+        weightsBias(i) = if (isCompacted) {
+          Tensor[T](storage, wb.storageOffset(), wb.size(), wb.stride())
+        } else {
+          Tensor[T](Storage(wb.storage().array()), wb.storageOffset(), wb.size(), wb.stride())
+        }
       }
       i += 1
     }
@@ -95,12 +101,9 @@ class ModelBroadcast[T: ClassTag](
     var i = 0
     while (i < localWeightBias.length) {
       if (localWeightBias(i) != null) {
+        localWeightBias(i).set(broadcastWeightBias(i))
         if (!inference) {
-//          localWeightBias(i).resizeAs(broadcastWeightBias(i)).copy(broadcastWeightBias(i))
-          localWeightBias(i).set(broadcastWeightBias(i))
           localGradWeightBias(i).resizeAs(broadcastWeightBias(i))
-        } else {
-          localWeightBias(i).set(broadcastWeightBias(i))
         }
       }
       i += 1

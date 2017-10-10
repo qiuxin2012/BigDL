@@ -563,14 +563,8 @@ object DistriOptimizer {
         (localModel, weights, grads, localCriterion, localState, localMethod)
       }.toArray
 
-      val weights = cached.head._2
-      cached.map(c =>
-        if (!c._2.eq(weights)) {
-          c._2.storage().set(weights.storage())
-        }
-      )
-
       logger.info("model thread pool size is " + Engine.model.getPoolSize)
+      val weights = cached.head._2
       parameters.init(weights)
 
       Iterator.single(Cache(

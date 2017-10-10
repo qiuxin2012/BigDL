@@ -96,7 +96,8 @@ class ModelBroadcast[T: ClassTag](
     while (i < localWeightBias.length) {
       if (localWeightBias(i) != null) {
         if (!inference) {
-          localWeightBias(i).resizeAs(broadcastWeightBias(i)).copy(broadcastWeightBias(i))
+//          localWeightBias(i).resizeAs(broadcastWeightBias(i)).copy(broadcastWeightBias(i))
+          localWeightBias(i).set(broadcastWeightBias(i))
           localGradWeightBias(i).resizeAs(broadcastWeightBias(i))
         } else {
           localWeightBias(i).set(broadcastWeightBias(i))

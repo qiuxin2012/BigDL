@@ -111,9 +111,18 @@ object TrainImageNet {
       if (param.checkpoint.isDefined) {
         optimizer.setCheckpoint(param.checkpoint.get, Trigger.everyEpoch)
       }
+      
+      val logdir = "resnet-imagenet"
+      val appName = s"${sc.applicationId}"
+      val trainSummary = TrainSummary(logdir, appName)
+      trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
+      trainSummary.setSummaryTrigger("Parameters", Trigger.severalIteration(10))
+      val validationSummary = ValidationSummary(logdir, appName)
 
       optimizer
         .setOptimMethod(optimMethod)
+        .setTrainSummary(trainSummary)
+        .setValidationSummary(validationSummary)
         .setValidation(Trigger.everyEpoch,
           validateSet, Array(new Top1Accuracy[Float], new Top5Accuracy[Float]))
         .setEndWhen(Trigger.maxEpoch(maxEpoch))

@@ -50,6 +50,7 @@ class ModelBroadcast[T: ClassTag](
     broadcastModel = sc.broadcast(model)
     broadcastParameters = sc.broadcast(weightsBias)
     putWeightBias(weightsBias, model)
+    initGradWeightBias(weightsBias, model)
     this
   }
 
@@ -60,44 +61,50 @@ class ModelBroadcast[T: ClassTag](
    */
   def value(): Module[T] = {
     val localModel = broadcastModel.value.cloneModule()
-    putWeightBias(broadcastParameters.value, localModel, inference)
+    putWeightBias(broadcastParameters.value, localModel)
+    initGradWeightBias(broadcastParameters.value, localModel)
     localModel
   }
 
 
   private def getAndClearWeightBias(parameters: (Array[Tensor[T]], Array[Tensor[T]]))
   : Array[Tensor[T]] = {
-    var i = 0
-    val weightsBias = new Array[Tensor[T]](parameters._1.length)
-    val storage = Storage(parameters._1(0).storage.array())
-    val isCompacted = parameters._1.map(_.nElement()).sum == storage.length()
-    while (i < parameters._1.length) {
-      if (parameters._1(i) != null) {
-        val wb = parameters._1(i)
-        weightsBias(i) = if (isCompacted) {
-          Tensor[T](storage, wb.storageOffset(), wb.size(), wb.stride())
-        } else {
-          Tensor[T](Storage(wb.storage().array()), wb.storageOffset(), wb.size(), wb.stride())
+    if (parameters._1.length != 0) {
+      var i = 0
+      val weightsBias = new Array[Tensor[T]](parameters._1.length)
+      val storage = Storage(parameters._1.filter(_ != null)(0).storage.array())
+      val isCompacted = parameters._1.filter(_ != null).map(_.nElement()).sum == storage.length()
+      while (i < parameters._1.length) {
+        if (parameters._1(i) != null) {
+          val wb = parameters._1(i)
+          weightsBias(i) = if (isCompacted) {
+            Tensor[T](storage, wb.storageOffset(), wb.size(), wb.stride())
+          } else {
+            Tensor[T](Storage(wb.storage().array()), wb.storageOffset(), wb.size(), wb.stride())
+          }
         }
+        i += 1
       }
-      i += 1
+      i = 0
+      while (i < parameters._1.length) {
+        if (parameters._1(i) != null) {
+          parameters._1(i).set()
+        }
+        if (parameters._2(i) != null) {
+          parameters._2(i).set()
+        }
+        i += 1
+      }
+      weightsBias
+    } else {
+      Array()
     }
-    i = 0
-    while (i < parameters._1.length) {
-      if (parameters._1(i) != null) {
-        parameters._1(i).set()
-      }
-      if (parameters._2(i) != null) {
-        parameters._2(i).set()
-      }
-      i += 1
-    }
-    weightsBias
   }
 
-  private def putWeightBias(broadcastWeightBias: Array[Tensor[T]],
-    localModel: Module[T], inference: Boolean = true): Unit = {
-    val (localWeightBias, localGradWeightBias) = localModel.parameters()
+  private def putWeightBias(
+        broadcastWeightBias: Array[Tensor[T]],
+        localModel: Module[T]): Unit = {
+    val localWeightBias = localModel.parameters()._1
     var i = 0
     while (i < localWeightBias.length) {
       if (localWeightBias(i) != null) {
@@ -105,20 +112,21 @@ class ModelBroadcast[T: ClassTag](
       }
       i += 1
     }
-    // init gradient with a compacted storage
-    if (!inference) {
-      val storage = Storage[T](localGradWeightBias.map(_.nElement()).sum)
-      i = 0
-      while (i < localWeightBias.length) {
-        if (localWeightBias(i) != null) {
-          val wb = broadcastWeightBias(i)
-          if (!inference) {
-            localGradWeightBias(i).set(storage, wb.storageOffset(), wb.size(), wb.stride())
-          }
-        }
-        i += 1
-      }
+  }
 
+  private def initGradWeightBias(
+        broadcastWeightBias: Array[Tensor[T]],
+        localModel: Module[T]): Unit = {
+    val (localWeightBias, localGradWeightBias) = localModel.parameters()
+    // init gradient with a compacted storage
+    val storage = Storage[T](localGradWeightBias.map(_.nElement()).sum)
+    var i = 0
+    while (i < localWeightBias.length) {
+      if (localWeightBias(i) != null) {
+        val wb = broadcastWeightBias(i)
+        localGradWeightBias(i).set(storage, wb.storageOffset(), wb.size(), wb.stride())
+      }
+      i += 1
     }
   }
 }

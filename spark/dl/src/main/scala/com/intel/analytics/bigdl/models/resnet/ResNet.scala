@@ -50,13 +50,15 @@ object Convolution {
      (implicit ev: TensorNumeric[T]): SpatialConvolution[T] = {
     val wReg = L2Regularizer[T](weightDecay)
     val bReg = L2Regularizer[T](weightDecay)
-    if (optnet) {
+    val conv = if (optnet) {
       SpatialShareConvolution[T](nInputPlane, nOutputPlane, kernelW, kernelH,
         strideW, strideH, padW, padH, nGroup, propagateBack, wReg, bReg)
     } else {
       SpatialConvolution[T](nInputPlane, nOutputPlane, kernelW, kernelH,
         strideW, strideH, padW, padH, nGroup, propagateBack, wReg, bReg)
     }
+    conv.setInitMethod(MsraFiller(false), Zeros)
+    conv
   }
 }
 
@@ -67,8 +69,7 @@ object Sbn {
       momentum: Double = 0.1,
       affine: Boolean = true)
     (implicit ev: TensorNumeric[T]): SpatialBatchNormalization[T] = {
-    SpatialBatchNormalization(nOutput, eps, momentum, affine)
-
+    SpatialBatchNormalization[T](nOutput, eps, momentum, affine).setInitMethod(Ones, Zeros)
   }
 }
 
@@ -205,7 +206,7 @@ object ResNet {
         .add(Sbn(n))
         .add(ReLU(true))
         .add(Convolution(n, n*4, 1, 1, 1, 1, 0, 0, optnet = optnet))
-        .add(Sbn(n * 4))
+        .add(Sbn(n * 4).setInitMethod(Zeros, Zeros))
 
       Sequential()
         .add(ConcatTable()
@@ -247,7 +248,7 @@ object ResNet {
       iChannels = 64
       logger.info(" | ResNet-" + depth + " ImageNet")
 
-      model.add(Convolution(3, 64, 7, 7, 2, 2, 3, 3, optnet = optnet))
+      model.add(Convolution(3, 64, 7, 7, 2, 2, 3, 3, optnet = optnet, propagateBack = false))
         .add(Sbn(64))
         .add(ReLU(true))
         .add(SpatialMaxPooling(3, 3, 2, 2, 1, 1))
@@ -257,7 +258,8 @@ object ResNet {
         .add(layer(block, 512, loopConfig._4, 2))
         .add(SpatialAveragePooling(7, 7, 1, 1))
         .add(View(nFeatures).setNumInputDims(3))
-        .add(Linear(nFeatures, classNum, true, L2Regularizer(1e-4), L2Regularizer(1e-4)))
+        .add(Linear(nFeatures, classNum, true, L2Regularizer(1e-4), L2Regularizer(1e-4))
+          .setInitMethod(RandomNormal(0.0, 0.01), Zeros))
     } else if (dataSet == DatasetType.CIFAR10) {
       require((depth - 2)%6 == 0,
         "depth should be one of 20, 32, 44, 56, 110, 1202")

@@ -44,7 +44,7 @@ class Lighting extends Transformer[LabeledBGRImage, LabeledBGRImage] {
 
   def lighting(input: Array[Float]): Unit = {
     if (alphastd != 0) {
-      val alpha = Tensor[Float](3).apply1(_ => RNG.uniform(0, alphastd).toFloat)
+      val alpha = Tensor[Float](3).apply1(_ => RNG.normal(0, alphastd).toFloat)
       val rgb = eigvec.clone
         .cmul(alpha.view(1, 3).expand(Array(3, 3)))
         .cmul(eigval.view(1, 3).expand(Array(3, 3)))

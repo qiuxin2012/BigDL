@@ -117,6 +117,7 @@ object ImageNetDataSet extends ResNetDataSet {
         height = imageSize,
         batchSize = batchSize,
         transformer = (BytesToBGRImg()
+          -> BGRImgScaler(256)
           -> BGRImgNormalizer(0.485, 0.456, 0.406, 0.229, 0.224, 0.225))
           -> BGRImgCropper(imageSize, imageSize, CropCenter)
       ))

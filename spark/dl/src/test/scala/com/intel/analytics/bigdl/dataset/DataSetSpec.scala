@@ -300,6 +300,36 @@ class DataSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     System.clearProperty("bigdl.localMode")
   }
 
+  "image preprocess" should "be same with torch result2" in {
+    val originMode = Engine.localMode
+    System.setProperty("bigdl.localMode", "true")
+    Engine.init(nodeNumber, coreNumber, false)
+    val resourceImageNet = getClass().getClassLoader().getResource("imagenet")
+    def test(imgFolder: String, imgFileName: String, tensorFile: String): Unit = {
+      val img1Path = Paths.get(processPath(resourceImageNet.getPath()), imgFolder, imgFileName)
+      val iter = (DataSet.array(Array(LocalLabeledImagePath(1.0f, img1Path)))
+        -> LocalImgReader()
+        -> BGRImgScaler(256)
+        -> BGRImgToBatch(1)
+        ).toLocal().data(train = false)
+      val image1 = iter.next().getInput.toTensor[Float]
+
+      val resourceTorch = getClass().getClassLoader().getResource("torch")
+      val tensor1Path = Paths.get(processPath(resourceTorch.getPath()), tensorFile)
+      val tensor1 = com.intel.analytics.bigdl.utils.File.loadTorch[Tensor[Float]](
+        tensor1Path.toString).addSingletonDimension()
+      image1.size() should be(tensor1.size())
+      image1.map(tensor1, (a, b) => {
+        a should be(b +- 0.0001f)
+        b
+      })
+    }
+    RandomGenerator.RNG.setSeed(100)
+    test("n15075141", "n15075141_25601.JPEG", "n15075141_25601.t7")
+    test("n02110063", "n02110063_15462.JPEG", "n02110063_15462.t7")
+    System.clearProperty("bigdl.localMode")
+  }
+
   "RDD from DataSet" should "give different position every time" in {
     val data = (1 to 4).toArray
     val trainRDD = DataSet.rdd(sc.parallelize(data, 1).mapPartitions(_ => {

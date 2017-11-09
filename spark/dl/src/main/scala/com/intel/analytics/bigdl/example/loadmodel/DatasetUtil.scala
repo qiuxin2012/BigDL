@@ -90,8 +90,10 @@ object ResNetPreprocessor {
   : RDD[Sample[Float]] = {
     val dataSet = DataSet.SeqFileFolder.filesToRdd(path, sc, classNum = 1000)
     val transfomer = BytesToBGRImg() ->
+      BGRImgScaler(256) ->
+      BGRImgNormalizer(0.485, 0.456, 0.406, 0.229, 0.224, 0.225) ->
       BGRImgCropper(cropWidth = imageSize, cropHeight = imageSize, CropCenter) ->
-      BGRImgNormalizer(0.485, 0.456, 0.406, 0.229, 0.224, 0.225) -> BGRImgToSample()
+      BGRImgToSample()
     transfomer(dataSet)
   }
 }

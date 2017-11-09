@@ -19,8 +19,8 @@ package com.intel.analytics.bigdl.example.loadmodel
 import java.nio.file.Paths
 
 import com.intel.analytics.bigdl.models.inception.Inception_v1_NoAuxClassifier
-import com.intel.analytics.bigdl.nn.Module
-import com.intel.analytics.bigdl.optim.{Top1Accuracy, Top5Accuracy, Validator}
+import com.intel.analytics.bigdl.nn.{CrossEntropyCriterion, Module}
+import com.intel.analytics.bigdl.optim.{Loss, Top1Accuracy, Top5Accuracy, Validator}
 import com.intel.analytics.bigdl.utils.Engine
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
@@ -124,6 +124,12 @@ object ModelValidator {
               (Module.loadTorch[Float](param.modelPath),
                 ResNetPreprocessor.rdd(valPath, param.batchSize, sc))
           }
+        case BigDlModel =>
+          param.modelName match {
+            case "resnet" =>
+              (Module.load[Float](param.modelPath),
+                ResNetPreprocessor.rdd(valPath, param.batchSize, sc))
+          }
 
         case _ => throw new IllegalArgumentException(s"${ param.modelType } is not" +
           s"supported in this example, please use alexnet/inception/resnet")
@@ -132,7 +138,8 @@ object ModelValidator {
 
       val result = model.evaluate(
         validateDataSet,
-        Array(new Top1Accuracy[Float](), new Top5Accuracy[Float]()),
+        Array(new Top1Accuracy[Float](), new Top5Accuracy[Float](),
+          new Loss[Float](CrossEntropyCriterion[Float]())),
         Some(param.batchSize))
 
       result.foreach(r => {

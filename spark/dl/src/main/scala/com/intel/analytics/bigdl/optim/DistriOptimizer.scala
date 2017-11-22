@@ -696,7 +696,6 @@ object DistriOptimizer {
       models.map(_.localModels.head.clearState()).first()
     }
     val (weights, gradients) = models.mapPartitions(iter => {
-      val cached = iter.next()
       val curPartitionId = TaskContext.getPartitionId()
       Iterator.single((Map(curPartitionId -> parameters.weightPartition),
         Map(curPartitionId -> parameters.gradientPartition)))

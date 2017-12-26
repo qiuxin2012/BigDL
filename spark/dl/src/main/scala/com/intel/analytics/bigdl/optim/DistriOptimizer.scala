@@ -747,24 +747,29 @@ object DistriOptimizer {
     parameters: AllReduceParameter[T],
     trainingModel: Module[T]): Module[T] = {
     val partitionNum = models.partitions.length
+    val (parameter, gradientParameter) = trainingModel.getParameters()
+    val parameterLength = parameter.nElement()
+    val taskSize = parameterLength / partitionNum
+    require(taskSize != 0, "parameter length should not less than partition number")
+    val extraSize = parameterLength % partitionNum
+
     val extraState = models.map(_.localModels.head.getExtraParameter()).first()
     trainingModel.setExtraParameter(extraState)
+
     val (weights, gradients) = models.mapPartitions(iter => {
       val cached = iter.next()
-      val curPartitionId = TaskContext.getPartitionId()
-      Iterator.single((Map(curPartitionId -> parameters.weightPartition),
-        Map(curPartitionId -> parameters.gradientPartition)))
+      val pid = TaskContext.getPartitionId()
+      val start = pid * taskSize + math.min(pid, extraSize)
+      val length = taskSize + (if (pid < extraSize) 1 else 0)
+      Iterator.single((
+        Map(pid -> cached.modelWeights(0).narrow(1, start + 1, length).clone()),
+        Map(pid -> cached.modelGradients(0).narrow(1, start + 1, length).clone())))
     }).reduce((a, b) => (a._1 ++ b._1, a._2 ++ b._2))
 
     val parameterArray = trainingModel.parameters()
     (0 until parameterArray._2.length).foreach(i =>
       parameterArray._2(i).resizeAs(parameterArray._1(i))
     )
-    val (parameter, gradientParameter) = trainingModel.getParameters()
-    val parameterLength = parameter.nElement()
-    val taskSize = parameterLength / partitionNum
-    require(taskSize != 0, "parameter length should not less than partition number")
-    val extraSize = parameterLength % partitionNum
 
     (0 until partitionNum).map(pid => {
       val start = pid * taskSize + math.min(pid, extraSize)

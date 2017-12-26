@@ -498,7 +498,7 @@ object DistriOptimizer {
       cachePath.foreach { path =>
         if (trigger(state)) {
           println(s"[Wall Clock ${wallClockTime / 1e9}s] Save model to $path")
-          saveModel(getModel(models, parameters, trainingModel), cachePath, isOverWrite,
+          saveModel(getModel(models, trainingModel), cachePath, isOverWrite,
             s".${state[Int]("neval")}")
           optimMethod.state.update("epoch", state[Int]("epoch"))
           optimMethod.state.update("neval", state[Int]("neval"))
@@ -525,7 +525,7 @@ object DistriOptimizer {
     val currentIteration = driverState[Int]("neval") - 1
     val parametersTrigger = trainSummary.getSummaryTrigger("Parameters")
     if (parametersTrigger.isDefined && parametersTrigger.get(driverState)) {
-      val model = getModel(models, parameters, trainingModel)
+      val model = getModel(models, trainingModel)
       val parametersTable = model.getParametersTable()
       // Parallelize to create Histogram.
       Engine.default.invokeAndWait(
@@ -738,13 +738,11 @@ object DistriOptimizer {
    * Fetch current model parameters to driver, and copy to trainingModel.
    *
    * @param models cached models
-   * @param parameters [[AllReduceParameter]]
    * @param trainingModel the model is trained by optimizer
    * @return trained model
    */
   private def getModel[T: ClassTag](
     models: RDD[Cache[T]],
-    parameters: AllReduceParameter[T],
     trainingModel: Module[T]): Module[T] = {
     val partitionNum = models.partitions.length
     val (parameter, gradientParameter) = trainingModel.getParameters()
@@ -753,9 +751,11 @@ object DistriOptimizer {
     require(taskSize != 0, "parameter length should not less than partition number")
     val extraSize = parameterLength % partitionNum
 
+    // get extraParam to trainingModel, like runningMean and runningVar in BN.
     val extraState = models.map(_.localModels.head.getExtraParameter()).first()
     trainingModel.setExtraParameter(extraState)
 
+    // collect weight and bias to driver
     val (weights, gradients) = models.mapPartitions(iter => {
       val cached = iter.next()
       val pid = TaskContext.getPartitionId()
@@ -766,11 +766,7 @@ object DistriOptimizer {
         Map(pid -> cached.modelGradients(0).narrow(1, start + 1, length).clone())))
     }).reduce((a, b) => (a._1 ++ b._1, a._2 ++ b._2))
 
-    val parameterArray = trainingModel.parameters()
-    (0 until parameterArray._2.length).foreach(i =>
-      parameterArray._2(i).resizeAs(parameterArray._1(i))
-    )
-
+    // copy weight and bias to trainingModel.
     (0 until partitionNum).map(pid => {
       val start = pid * taskSize + math.min(pid, extraSize)
       val length = taskSize + (if (pid < extraSize) 1 else 0)
@@ -947,7 +943,7 @@ class DistriOptimizer[T: ClassTag] (
       }
     }
 
-    DistriOptimizer.getModel(models, parameters, model)
+    DistriOptimizer.getModel(models, model)
 
     // Reset some internal states, so this or other optimizers can run optimize again
     clearState()

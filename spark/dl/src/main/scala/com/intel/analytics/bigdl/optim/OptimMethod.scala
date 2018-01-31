@@ -82,6 +82,11 @@ trait OptimMethod[@specialized(Float, Double) T] extends Serializable {
     "neval" -> 1
   )
 
+  def setState(state: Table): this.type = {
+    this.state = state
+    this
+  }
+
   /**
    * save OptimMethod
    *

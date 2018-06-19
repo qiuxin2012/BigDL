@@ -257,9 +257,8 @@ abstract class Optimizer[T: ClassTag, D](
         s" Automatically associate the current optimMethod with the new model.")
     } else {
       logger.warn(s"Optimizer.setModel: Detect current optimMethod is not a global optimMethod." +
-        s" Clearing the old optimMethod.")
-      optimMethods = _
-      logger.warn(s"Optimizer.setModel: old optimMethod cleared.")
+        s" Set to default SGD.")
+      optimMethods = Map(newModel.getName() -> new SGD())
     }
 
     model = newModel
@@ -357,6 +356,16 @@ abstract class Optimizer[T: ClassTag, D](
   }
 
   /**
+   * Set optimization methods for each submodule.
+   *
+   * @param method A mapping of submodule -> OptimMethod
+   */
+  def setOptimMethods(method: Array[(String, OptimMethod[T])]): this.type = {
+    setOptimMethods(method.toMap)
+    this
+  }
+
+  /**
    * When to stop, passed in a [[Trigger]]
    *
    * @param endWhen when to end
@@ -439,10 +448,6 @@ object Optimizer {
   /**
    * Check if the sub modules are in the model, if each sub modules' parameter
    * is contiguous, if sub modules' parameter is duplicated.
-   * @param model
-   * @param subModuleNames
-   * @param ev
-   * @tparam T
    */
   private[bigdl] def checkSubModules[T: ClassTag](
         model: Module[T],
@@ -455,8 +460,9 @@ object Optimizer {
       require(subModuleWeights.nElement() > 0, s"Optimizer: $subModuleName doesn't have" +
         s" any trainable parameters, please check your model and optimMethods.")
       // If the storage subModule's parameter is the same with the storage of the submodule,
-      // then subModule
-      require(modelParameters._1.storage() == subModuleWeights.storage(), s"Optimizer:" +
+      // then the submodule's parameter is contiguous(storage is unchanged during calling
+      // submodule.getParameter).
+      require(modelParameters._1.storage().eq(subModuleWeights.storage()), s"Optimizer:" +
         s" $subModuleName's parameter is not contiguous.")
       (subModuleName, subModuleWeights)
     }.toArray
@@ -486,7 +492,7 @@ object Optimizer {
         if (log.isEmpty) {
           log
         } else {
-          s"${moduleName}'s hyper parameters: ${log} "
+          s"${moduleName}'s hyper parameters: \n ${log} "
         }
       }.reduce(_ + _)
   }

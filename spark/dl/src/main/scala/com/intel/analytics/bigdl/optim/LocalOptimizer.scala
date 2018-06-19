@@ -97,7 +97,7 @@ class LocalOptimizer[T: ClassTag] (
     }
 
     checkSubModules(model, optimMethods.keys.toSeq)
-    val currentOptimMethods = optimMethods.map{case (subModuleName, optimMethod) =>
+    val moduleNameAndParameters = optimMethods.map{case (subModuleName, optimMethod) =>
       val subModule = model(subModuleName)
       (optimMethod, subModule.get.getParameters())
     }
@@ -188,7 +188,7 @@ class LocalOptimizer[T: ClassTag] (
       if (gradientClippingParams.enableConstantClipping) {
         grad.clamp(gradientClippingParams.minValueClip, gradientClippingParams.maxValueClip)
       }
-      currentOptimMethods.foreach { case (optimMethod, (weight, grad)) =>
+      moduleNameAndParameters.foreach { case (optimMethod, (weight, grad)) =>
         optimMethod.state.update("epoch", state.get("epoch"))
         optimMethod.state.update("neval", state.get("neval"))
         optimMethod.optimize(_ => (ev.fromType(loss), grad), weight)

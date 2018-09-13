@@ -2711,6 +2711,10 @@ class PythonBigDL[T: ClassTag](implicit ev: TensorNumeric[T]) extends Serializab
     module.runningMean.set(toTensor(runningMean))
   }
 
+  def getOutput(module: Module[T]): JList[JTensor] = {
+    activityToJTensors(module.output)
+  }
+
   def setRunningStd(module: BatchNormalization[T], runningStd: JTensor): Unit = {
     module.runningVar.set(toTensor(runningStd))
   }

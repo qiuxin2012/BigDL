@@ -20,6 +20,7 @@ import com.intel.analytics.bigdl.dataset.{DataSet, LocalDataSet, MiniBatch}
 import com.intel.analytics.bigdl.nn._
 import com.intel.analytics.bigdl._
 import com.intel.analytics.bigdl.dataset.image.{BGRImgToBatch, LabeledBGRImage}
+import com.intel.analytics.bigdl.example.recommendation.NeuralCFV2
 import com.intel.analytics.bigdl.mkl.Memory
 import com.intel.analytics.bigdl.nn.mkldnn.HeapData
 import com.intel.analytics.bigdl.tensor.{DnnStorage, Storage, Tensor}
@@ -455,6 +456,16 @@ class LocalOptimizerSpec extends FlatSpec with Matchers with BeforeAndAfter{
     val newG = model2.getParameters()._2
     assert(expectedG.almostEqual(newG, 0.0), "clipbynorm2 should generate correct gradient")
   }
+
+  "ncf" should "works fine" in {
+    System.setProperty("spark.master", "local[4]")
+    Engine.init
+    val a = NeuralCFV2[Float](55, 44, 1, 20, 20, Array(40, 20, 10))
+    val dataset = DataSet.array(Array[MiniBatch[Float]]()).toLocal()
+    val nc = new NCFOptimizer[Float](a, dataset, BCECriterion[Float]())
+    println()
+
+  }
 }
 
 @com.intel.analytics.bigdl.tags.Serial
@@ -487,4 +498,5 @@ class LocalOptimizerSpec2 extends FlatSpec with Matchers with BeforeAndAfter {
     optimizer.optimize()
     DnnStorage.get().count(!_._2) should be (count)
   }
+
 }

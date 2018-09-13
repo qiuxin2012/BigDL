@@ -336,6 +336,16 @@ abstract class Optimizer[T: ClassTag, D](
     this
   }
 
+  /**
+   * Set new train dataset
+   * @param trainDataset new train dataset
+   * @return
+   */
+  def setTrainData(trainDataset: DataSet[D]): this.type = {
+    dataset = trainDataset
+    this
+  }
+
 
   /**
    * Set a new criterion to the optimizer

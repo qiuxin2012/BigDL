@@ -131,6 +131,10 @@ class Layer(JavaValue, SharedStaticUtils):
                 bigdl_type, self.jvm_class_constructor(), *args)
         self.bigdl_type = bigdl_type
 
+    def output(self):
+        out = callBigDlFunc(self.bigdl_type, "getOutput", self.value)
+        return self.convert_output(out)
+
     def set_running_mean(self, running_mean):
         """
         Set the running mean of the layer.

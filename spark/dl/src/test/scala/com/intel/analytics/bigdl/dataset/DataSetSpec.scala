@@ -22,8 +22,9 @@ import java.util.concurrent.{Callable, Executors}
 
 import com.intel.analytics.bigdl.dataset.image._
 import com.intel.analytics.bigdl.tensor.Tensor
-import com.intel.analytics.bigdl.utils.{Engine, RandomGenerator, TestUtils, SparkContextLifeCycle}
+import com.intel.analytics.bigdl.utils.{Engine, RandomGenerator, SparkContextLifeCycle, TestUtils}
 import org.apache.hadoop.io.Text
+import org.apache.spark.rdd.ZippedPartitionsWithLocalityRDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
@@ -370,6 +371,42 @@ class DataSetSpec extends SparkContextLifeCycle with Matchers {
       localData(i) should be (data(i))
       i += 1
     }
+  }
+
+  "distributed dataset" should "train all batch in optimizer" in {
+    val data = sc.parallelize(Range(1, 10, 1)).map{v =>
+      Tensor[Float](1).setValue(1, v)
+    }.cache()
+    val dataNum = data.count().toInt
+    val fs = DataSet.rdd(data)
+    fs.shuffle()
+    val dataRDD = fs.data(true)
+    val modelRdd = data.map(_.valueAt(1)).cache()
+    // just like
+    val allData = (0 until dataNum).flatMap{i =>
+      dataRDD.zipPartitions(modelRdd, preservesPartitioning = true) {(dataIter, modelIter) =>
+        Iterator.single(dataIter.next())
+      }.collect()
+    }.toArray
+    val sortedAllData = allData.map(_.valueAt(1)).sorted
+    sortedAllData should be (Array.range(1, 10))
+  }
+
+  "distributed dataset" should "validate all batch in optimizer" in {
+    val data = sc.parallelize(Range(1, 10, 1)).map{v =>
+      Tensor[Float](1).setValue(1, v)
+    }.cache()
+    val fs = DataSet.rdd(data)
+    fs.shuffle()
+    val dataRDD = fs.data(false)
+    val modelRdd = data.map(_.valueAt(1)).cache()
+    // just like
+    val allData =
+      ZippedPartitionsWithLocalityRDD(dataRDD, modelRdd) {(dataIter, modelIter) =>
+        dataIter.map(batch => batch.valueAt(1))
+      }.collect()
+    val sortedAllData = allData.sorted
+    sortedAllData should be (Array.range(1, 10))
   }
 
   "transformRDD" should "be correct" in {

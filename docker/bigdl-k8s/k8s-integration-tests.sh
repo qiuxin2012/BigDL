@@ -1,7 +1,8 @@
 #!/bin/bash
+set -e
 
 # fashion_mnist.py
-echo "################## start fashion_mnist  client "
+echo "################## start fashion_mnist client"
 starttime=`date +'%Y-%m-%d %H:%M:%S'`
 ${SPARK_HOME}/bin/spark-submit \
   --master ${RUNTIME_SPARK_MASTER} \
@@ -40,10 +41,10 @@ ${SPARK_HOME}/bin/spark-submit \
 endtime=`date +'%Y-%m-%d %H:%M:%S'`
 start_seconds=$(date --date="$starttime" +%s);
 end_seconds=$(date --date="$endtime" +%s);
-echo "################## end fasion_mnist.py client "
-echo "run time is： "$((end_seconds-start_seconds))"s"
+echo "################## end fasion_mnist.py client"
+echo "run time is： $((end_seconds-start_seconds))s"
   
-echo "################## start fasion_mnist cluster "
+echo "################## start fasion_mnist cluster"
 starttime=`date +'%Y-%m-%d %H:%M:%S'`
 ##  fasion_mnist.py cluster
 ${SPARK_HOME}/bin/spark-submit \
@@ -82,7 +83,7 @@ endtime=`date +'%Y-%m-%d %H:%M:%S'`
 start_seconds=$(date --date="$starttime" +%s);
 end_seconds=$(date --date="$endtime" +%s);
 echo "################## end fasion_mnist.py  cluster "
-echo "run time is： "$((end_seconds-start_seconds))"s"
+echo "run time is： $((end_seconds-start_seconds))s"
 
 #echo "################## start autoestimator_pytorch.py  client "
 #starttime=`date +'%Y-%m-%d %H:%M:%S'`

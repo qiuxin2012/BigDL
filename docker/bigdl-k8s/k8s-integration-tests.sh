@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # fashion_mnist.py
 echo "################## start fashion_mnist client"

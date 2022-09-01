@@ -680,7 +680,7 @@ class SigmoidSpec extends FlatSpec {
       val l = r.getAs[Int](columnInfo.label)
 
       val label = Tensor[Float](T(l))
-      label.resize(1, 1)
+      label.resize(1)
 
       modelType match {
         case "wide_n_deep" =>
@@ -725,7 +725,7 @@ class SigmoidSpec extends FlatSpec {
 
       val ageBucketUdf = udf(bucketizedColumn(ages))
 
-      val incomeUdf = udf((income: String) => if (income == ">50K") 2 else 1)
+      val incomeUdf = udf((income: String) => if (income == ">50K" || income == ">50K.") 1 else 0)
 
       val data = dataDf
         .withColumn("age_bucket", ageBucketUdf(col("age")))
@@ -792,10 +792,96 @@ class SigmoidSpec extends FlatSpec {
     }
 
     val sample2batch = SampleToMiniBatch[Float](batchSize)
-    val trainRdds = FeatureSet.rdd(trainpairFeatureRdds.map(x => x.sample)) ->
-      sample2batch
-    val validationRdds = FeatureSet.rdd(validationpairFeatureRdds.map(x => x.sample)) ->
-      sample2batch
+//    val trainRdds = FeatureSet.rdd(trainpairFeatureRdds.map(x => x.sample)) ->
+//      sample2batch
+//    val validationRdds = FeatureSet.rdd(validationpairFeatureRdds.map(x => x.sample)) ->
+//      sample2batch
+    val trainDataset = DataSet.array(
+        trainpairFeatureRdds.map(_.sample).collect()) -> SampleToMiniBatch[Float](batchSize)
+    val validationDataset = DataSet.array(
+        validationpairFeatureRdds.map(_.sample).collect()) -> SampleToMiniBatch[Float](batchSize)
+
+    val numFeature = 3049
+    val totalSize = trainDataset.size()
+    val bs = batchSize
+
+    val module = Sequential[Float]()
+    module.add(SparseLinear[Float](numFeature, 1))
+    module.add(Sigmoid[Float]())
+    val criterion = new BCECriterion[Float]()
+    val sgd = new Adagrad[Float](0.001)
+    //    val sgd2 = new SGD[Float](0.5, learningRateDecay = 1e-4)
+    val sgd2 = new Adagrad[Float](0.001)
+    val (weight, gradient) = module.getParameters()
+
+    val module2 = SparseLinear[Float](numFeature, 1)
+    val sigmoid2 = Sigmoid[Float]()
+    val (weight2, gradient2) = module2.getParameters()
+    weight2.copy(weight)
+    val ckks = new CKKS()
+    val secrets = ckks.createSecrets()
+    val encryptorPtr = ckks.createCkksEncryptor(secrets)
+    val ckksRunnerPtr = ckks.createCkksCommonInstance(secrets)
+
+    var a = 0
+    val epochNum = 40
+    val lossArray = new Array[Float](epochNum)
+    val loss2Array = new Array[Float](epochNum)
+    (0 until epochNum).foreach{epoch =>
+      var countLoss = 0f
+      var countLoss2 = 0f
+      trainDataset.shuffle()
+      val trainData = trainDataset.toLocal().data(false)
+      while(trainData.hasNext) {
+        val miniBatch = trainData.next()
+        val input = miniBatch.getInput()
+        val currentBs = input.toTensor[Float].size(1)
+        val target = miniBatch.getTarget()
+        val output = module.forward(input)
+        val loss = criterion.forward(output, target)
+        countLoss += loss
+        if (a < 4) {
+          a += 1
+          println(countLoss / a)
+        }
+        val gradOutput = criterion.backward(output, target)
+        module.backward(input, gradOutput)
+        sgd.optimize(_ => (loss, gradient), weight)
+
+        //        val output2 = module2.forward(input).toTensor[Float]
+        //        val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
+        //        val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
+        //        val o = ckks.train(ckksRunnerPtr, enInput, enTarget)
+
+        val output2 = sigmoid2.forward(module2.forward(input).toTensor[Float])
+        val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
+        val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
+        val o = ckks.backward(ckksRunnerPtr, enInput, enTarget)
+
+        val enLoss = ckks.ckksDecrypt(encryptorPtr, o(0))
+        val enGradInput2 = ckks.ckksDecrypt(encryptorPtr, o(1))
+        val gradInput2 = Tensor[Float](enGradInput2.slice(0, currentBs), Array(currentBs, 1))
+        gradInput2.div(currentBs)
+        module2.backward(input, gradInput2)
+        val loss2 = enLoss.slice(0, currentBs).sum / currentBs
+        sgd2.optimize(_ => (loss2, gradient2), weight2)
+        countLoss2 += loss2
+        if (a < 4) {
+          println(countLoss2 / a)
+        }
+        module.zeroGradParameters()
+        module2.zeroGradParameters()
+      }
+      lossArray(epoch) = countLoss / Math.ceil(totalSize / bs).toFloat
+      loss2Array(epoch) = countLoss2 / Math.ceil(totalSize / bs).toFloat
+      println(countLoss / (totalSize / bs))
+      println("           " + countLoss2 / (totalSize / bs))
+    }
+    println("loss1: ")
+    println(lossArray.mkString("\n"))
+    println("loss2: ")
+    println(loss2Array.mkString("\n"))
+
 
     println(trainpairFeatureRdds.count())
     println(validationpairFeatureRdds.count())

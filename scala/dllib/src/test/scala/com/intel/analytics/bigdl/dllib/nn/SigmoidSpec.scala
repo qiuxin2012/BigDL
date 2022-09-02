@@ -23,7 +23,7 @@ import com.intel.analytics.bigdl.dllib.feature.dataset.{DataSet, Sample, SampleT
 import com.intel.analytics.bigdl.dllib.optim.{Adagrad, Ftrl, SGD}
 import org.scalatest.FlatSpec
 import com.intel.analytics.bigdl.dllib.tensor.Tensor
-import com.intel.analytics.bigdl.dllib.utils.{Engine, T, TestUtils}
+import com.intel.analytics.bigdl.dllib.utils.{Engine, RandomGenerator, T, TestUtils}
 import com.intel.analytics.bigdl.dllib.utils.serializer.ModuleSerializationTest
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.sql.{Row, SparkSession}
@@ -748,7 +748,7 @@ class SigmoidSpec extends FlatSpec {
     val batchSize = 128
     val maxEpoch = 10
     val modelType = "wide"
-    val inputDir = "/home/xin/adult"
+    val inputDir = "/home/xin/datasets/adult"
 
     val conf = new SparkConf().setAppName("WideAndDeepExample").setMaster("local[4]")
     val sc = NNContext.initNNContext(conf)
@@ -805,6 +805,7 @@ class SigmoidSpec extends FlatSpec {
     val totalSize = trainDataset.size()
     val bs = batchSize
 
+    RandomGenerator.RNG.setSeed(2L)
     val module = Sequential[Float]()
     module.add(SparseLinear[Float](numFeature, 1))
     module.add(Sigmoid[Float]())
@@ -813,6 +814,7 @@ class SigmoidSpec extends FlatSpec {
     //    val sgd2 = new SGD[Float](0.5, learningRateDecay = 1e-4)
     val sgd2 = new Adagrad[Float](0.001)
     val (weight, gradient) = module.getParameters()
+    weight.randn(0, 0.001)
 
     val module2 = SparseLinear[Float](numFeature, 1)
     val sigmoid2 = Sigmoid[Float]()
@@ -824,7 +826,7 @@ class SigmoidSpec extends FlatSpec {
     val ckksRunnerPtr = ckks.createCkksCommonInstance(secrets)
 
     var a = 0
-    val epochNum = 40
+    val epochNum = 20
     val lossArray = new Array[Float](epochNum)
     val loss2Array = new Array[Float](epochNum)
     (0 until epochNum).foreach{epoch =>
@@ -848,15 +850,15 @@ class SigmoidSpec extends FlatSpec {
         module.backward(input, gradOutput)
         sgd.optimize(_ => (loss, gradient), weight)
 
-        //        val output2 = module2.forward(input).toTensor[Float]
-        //        val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
-        //        val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
-        //        val o = ckks.train(ckksRunnerPtr, enInput, enTarget)
-
-        val output2 = sigmoid2.forward(module2.forward(input).toTensor[Float])
+        val output2 = module2.forward(input).toTensor[Float]
         val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
         val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
-        val o = ckks.backward(ckksRunnerPtr, enInput, enTarget)
+        val o = ckks.train(ckksRunnerPtr, enInput, enTarget)
+
+//        val output2 = sigmoid2.forward(module2.forward(input).toTensor[Float])
+//        val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
+//        val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
+//        val o = ckks.backward(ckksRunnerPtr, enInput, enTarget)
 
         val enLoss = ckks.ckksDecrypt(encryptorPtr, o(0))
         val enGradInput2 = ckks.ckksDecrypt(encryptorPtr, o(1))
@@ -886,6 +888,48 @@ class SigmoidSpec extends FlatSpec {
     println(trainpairFeatureRdds.count())
     println(validationpairFeatureRdds.count())
 
+    module.evaluate()
+    module2.evaluate()
+    val evalData = validationDataset.toLocal().data(false)
+    var accDllib = 0
+    var accCkks = 0
+    while( evalData.hasNext) {
+      val miniBatch = evalData.next()
+      val input = miniBatch.getInput()
+      val currentBs = input.toTensor[Float].size(1)
+      val target = miniBatch.getTarget().toTensor[Float]
+      val pre = module.forward(input)
+
+      val output2 = module2.forward(input).toTensor[Float]
+      val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
+      val enPre = ckks.sigmoidForward(ckksRunnerPtr, enInput)
+      val pre2 = ckks.ckksDecrypt(encryptorPtr, enPre(0))
+
+      println("target dllib ckks")
+      (0 until currentBs).foreach { i =>
+        val dllibPre = pre.toTensor[Float].valueAt(i + 1, 1)
+        val ckksPre = pre2(i)
+        val t = target.valueAt(i + 1, 1)
+        if (t == 0) {
+          if (dllibPre <= 0.5) {
+            accDllib += 1
+          }
+          if (ckksPre <= 0.5) {
+            accCkks += 1
+          }
+        } else {
+          if (dllibPre > 0.5) {
+            accDllib += 1
+          }
+          if (ckksPre > 0.5) {
+            accCkks += 1
+          }
+        }
+        println(t + " " + dllibPre + " " + ckksPre)
+      }
+    }
+    println(s"predict correct ${accDllib} ${accCkks}")
+    println(validationpairFeatureRdds.count())
   }
 }
 

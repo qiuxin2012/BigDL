@@ -93,24 +93,16 @@ class SigmoidSpec extends FlatSpec {
     val eps = 1e-12f
     val module = new Sigmoid[Float]
     val criterion = new BCECriterion[Float]()
-    val input = Tensor[Float](2, 2, 2)
-    input(Array(1, 1, 1)) = 0.063364277360961f
-    input(Array(1, 1, 2)) = 0.90631252736785f
-    input(Array(1, 2, 1)) = 0.22275671223179f
-    input(Array(1, 2, 2)) = 0.37516756891273f
-    input(Array(2, 1, 1)) = 0.99284988618456f
-    input(Array(2, 1, 2)) = 0.97488326719031f
-    input(Array(2, 2, 1)) = 0.94414822547697f
-    input(Array(2, 2, 2)) = 0.68123375508003f
-    val target = Tensor[Float](2, 2, 2)
-    target(Array(1, 1, 1)) = 0
-    target(Array(1, 1, 2)) = 1
-    target(Array(1, 2, 1)) = 0
-    target(Array(1, 2, 2)) = 0
-    target(Array(2, 1, 1)) = 1
-    target(Array(2, 1, 2)) = 1
-    target(Array(2, 2, 1)) = 1
-    target(Array(2, 2, 2)) = 1
+    val input = Tensor[Float](2, 2)
+    input(Array(1, 1)) = 0.063364277360961f
+    input(Array(1, 2)) = 0.90631252736785f
+    input(Array(2, 1)) = 0.22275671223179f
+    input(Array(2, 2)) = 0.37516756891273f
+    val target = Tensor[Float](2, 2)
+    target(Array(1, 1)) = 1
+    target(Array(1, 2)) = 1
+    target(Array(2, 1)) = 0
+    target(Array(2, 2)) = 1
 
 //    val manuO = new Array[Float](8)
 //    (0 until 8).foreach{i =>
@@ -127,7 +119,7 @@ class SigmoidSpec extends FlatSpec {
     val ooo = target.clone().cmul(exceptedOutput.clone().add(eps).log()).add(
       target.clone().mul(-1).add(1).cmul(exceptedOutput.clone().mul(-1).add(1).add(eps).log()))
     ooo.mul(-1)
-    val eo = ooo.sum() / 8
+    val eo = ooo.sum() / 4
 
 
     val exceptedLoss = criterion.forward(exceptedOutput, target)
@@ -144,9 +136,9 @@ class SigmoidSpec extends FlatSpec {
     val o = ckks.train(ckksRunnerPtr, enInput, enTarget)
     val enLoss = ckks.ckksDecrypt(encryptorPtr, o(0))
     val enGradInput2 = ckks.ckksDecrypt(encryptorPtr, o(1))
-    val gradInput2 = Tensor[Float](enGradInput2.slice(0, 8), Array(2, 2, 2))
-    gradInput2.div(8)
-    val loss = enLoss.slice(0, 8).sum / 8
+    val gradInput2 = Tensor[Float](enGradInput2.slice(0, 4), Array(2, 2))
+    gradInput2.div(4)
+    val loss = enLoss.slice(0, 4).sum / 4
     println(loss + "  "  + exceptedLoss)
     println(gradInput2)
     println()

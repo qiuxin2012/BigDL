@@ -43,3 +43,14 @@ message MetaData {
     string name = 1;
     int32 version = 2;
 }
+
+message EncryptedTensor {
+    repeated int32 shape = 1;
+    bytes tensor = 2;
+    string dtype = 3;
+}
+
+message EncryptedTensorMap {
+    MetaData metaData = 1;
+    map<string, EncryptedTensor> tensorMap = 2;
+}

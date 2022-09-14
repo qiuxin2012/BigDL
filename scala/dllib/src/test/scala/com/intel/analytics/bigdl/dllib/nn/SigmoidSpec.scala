@@ -29,6 +29,7 @@ import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
 
+import java.util
 import scala.collection.mutable.ArrayBuffer
 import scala.math.abs
 import scala.util.Random
@@ -737,7 +738,7 @@ class SigmoidSpec extends FlatSpec {
       rddOfSample
     }
 
-    val batchSize = 128
+    val batchSize = 8192
     val maxEpoch = 10
     val modelType = "wide"
     val inputDir = "/home/xin/datasets/adult"
@@ -798,19 +799,17 @@ class SigmoidSpec extends FlatSpec {
     val bs = batchSize
 
     RandomGenerator.RNG.setSeed(2L)
-    val module = Sequential[Float]()
-    module.add(SparseLinear[Float](numFeature, 1))
-    module.add(Sigmoid[Float]())
+    val linear = SparseLinear[Float](numFeature, 1)
+    val sigmoid = Sigmoid[Float]()
     val criterion = new BCECriterion[Float]()
     val sgd = new Adagrad[Float](0.001)
     //    val sgd2 = new SGD[Float](0.5, learningRateDecay = 1e-4)
     val sgd2 = new Adagrad[Float](0.001)
-    val (weight, gradient) = module.getParameters()
+    val (weight, gradient) = linear.getParameters()
     weight.randn(0, 0.001)
 
-    val module2 = SparseLinear[Float](numFeature, 1)
-    val sigmoid2 = Sigmoid[Float]()
-    val (weight2, gradient2) = module2.getParameters()
+    val linear2 = SparseLinear[Float](numFeature, 1)
+    val (weight2, gradient2) = linear2.getParameters()
     weight2.copy(weight)
     val ckks = new CKKS()
     val secrets = ckks.createSecrets()
@@ -821,6 +820,8 @@ class SigmoidSpec extends FlatSpec {
     val epochNum = 20
     val lossArray = new Array[Float](epochNum)
     val loss2Array = new Array[Float](epochNum)
+    var ckksTime = Array(0L, 0L, 0L)
+    var dllibTime = Array(0L, 0L, 0L)
     (0 until epochNum).foreach{epoch =>
       var countLoss = 0f
       var countLoss2 = 0f
@@ -831,18 +832,33 @@ class SigmoidSpec extends FlatSpec {
         val input = miniBatch.getInput()
         val currentBs = input.toTensor[Float].size(1)
         val target = miniBatch.getTarget()
-        val output = module.forward(input)
-        val loss = criterion.forward(output, target)
+
+        val dllibStart = System.nanoTime()
+        val doutput1 = linear.forward(input)
+        dllibTime(1) += System.nanoTime() - dllibStart
+        val doutput2 = sigmoid.forward(doutput1)
+        val loss = criterion.forward(doutput2, target)
+        val gradOutput = criterion.backward(doutput2, target)
+        val dgradInput1 = sigmoid.backward(doutput1, gradOutput)
+        val dllibLstart = System.nanoTime()
+        linear.backward(input, dgradInput1)
+        dllibTime(1) += System.nanoTime() - dllibLstart
+        val updateStart = System.nanoTime()
+        sgd.optimize(_ => (loss, gradient), weight)
+        linear.zeroGradParameters()
+        dllibTime(2) += System.nanoTime() - updateStart
+        dllibTime(0) += System.nanoTime() - dllibStart
+//        ckksTime(0) += criterion
+
         countLoss += loss
         if (a < 4) {
           a += 1
           println(countLoss / a)
         }
-        val gradOutput = criterion.backward(output, target)
-        module.backward(input, gradOutput)
-        sgd.optimize(_ => (loss, gradient), weight)
 
-        val output2 = module2.forward(input).toTensor[Float]
+        val ckksStart = System.nanoTime()
+        val output2 = linear2.forward(input).toTensor[Float]
+        ckksTime(1) += System.nanoTime() - ckksStart
         val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
         val enTarget = ckks.ckksEncrypt(encryptorPtr, target.toTensor[Float].storage().array())
         val o = ckks.train(ckksRunnerPtr, enInput, enTarget)
@@ -856,20 +872,33 @@ class SigmoidSpec extends FlatSpec {
         val enGradInput2 = ckks.ckksDecrypt(encryptorPtr, o(1))
         val gradInput2 = Tensor[Float](enGradInput2.slice(0, currentBs), Array(currentBs, 1))
         gradInput2.div(currentBs)
-        module2.backward(input, gradInput2)
+        val ckksLstart = System.nanoTime()
+        linear2.backward(input, gradInput2)
         val loss2 = enLoss.slice(0, currentBs).sum / currentBs
+        ckksTime(1) += System.nanoTime() - ckksLstart
+
+        val updateStart2 = System.nanoTime()
         sgd2.optimize(_ => (loss2, gradient2), weight2)
+        linear2.zeroGradParameters()
+        ckksTime(2) += System.nanoTime() - updateStart2
+        ckksTime(0) += System.nanoTime() - ckksStart
         countLoss2 += loss2
         if (a < 4) {
           println(countLoss2 / a)
         }
-        module.zeroGradParameters()
-        module2.zeroGradParameters()
       }
       lossArray(epoch) = countLoss / Math.ceil(totalSize / bs).toFloat
       loss2Array(epoch) = countLoss2 / Math.ceil(totalSize / bs).toFloat
       println(countLoss / (totalSize / bs))
       println("           " + countLoss2 / (totalSize / bs))
+      println(s"ckksTime: " + ckksTime(0) / 1e9)
+      println(s"dllibTime: " + dllibTime(0) / 1e9)
+      println(s"ckks Linear Time: ${ckksTime(1) / 1e9}")
+      println(s"dllib Linear Time: ${dllibTime(1) / 1e9}")
+      println(s"ckks update Time: ${ckksTime(2) / 1e9}")
+      println(s"dllib update Time: ${dllibTime(2) / 1e9}")
+      util.Arrays.fill(ckksTime, 0L)
+      util.Arrays.fill(dllibTime, 0L)
     }
     println("loss1: ")
     println(lossArray.mkString("\n"))
@@ -880,22 +909,31 @@ class SigmoidSpec extends FlatSpec {
     println(trainpairFeatureRdds.count())
     println(validationpairFeatureRdds.count())
 
-    module.evaluate()
-    module2.evaluate()
+    linear.evaluate()
+    linear2.evaluate()
     val evalData = validationDataset.toLocal().data(false)
     var accDllib = 0
     var accCkks = 0
+    var ckksPreTime = Array(0L, 0L)
+    var dllibPreTime = Array(0L, 0L)
     while( evalData.hasNext) {
       val miniBatch = evalData.next()
       val input = miniBatch.getInput()
       val currentBs = input.toTensor[Float].size(1)
       val target = miniBatch.getTarget().toTensor[Float]
-      val pre = module.forward(input)
+      val dllibStart = System.nanoTime()
+      val output = linear.forward(input)
+      dllibPreTime(1) += System.nanoTime() - dllibStart
+      val pre = sigmoid.forward(output)
+      dllibPreTime(0) += System.nanoTime() - dllibStart
 
-      val output2 = module2.forward(input).toTensor[Float]
+      val ckksStart = System.nanoTime()
+      val output2 = linear2.forward(input).toTensor[Float]
+      ckksPreTime(1) += System.nanoTime() - ckksStart
       val enInput = ckks.ckksEncrypt(encryptorPtr, output2.storage().array())
       val enPre = ckks.sigmoidForward(ckksRunnerPtr, enInput)
       val pre2 = ckks.ckksDecrypt(encryptorPtr, enPre(0))
+      ckksPreTime(0) += System.nanoTime() - ckksStart
 
       println("target dllib ckks")
       (0 until currentBs).foreach { i =>
@@ -917,9 +955,13 @@ class SigmoidSpec extends FlatSpec {
             accCkks += 1
           }
         }
-        println(t + " " + dllibPre + " " + ckksPre)
+//        println(t + " " + dllibPre + " " + ckksPre)
       }
     }
+    println(s"ckksTime: " + ckksPreTime(0) / 1e9)
+    println(s"dllibTime: " + dllibPreTime(0) / 1e9)
+    println(s"ckks Linear Time: ${ckksPreTime(1) / 1e9}")
+    println(s"dllib Linear Time: ${dllibPreTime(1) / 1e9}")
     println(s"predict correct ${accDllib} ${accCkks}")
     println(validationpairFeatureRdds.count())
   }

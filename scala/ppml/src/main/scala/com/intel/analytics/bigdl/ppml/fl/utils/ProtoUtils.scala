@@ -54,6 +54,11 @@ object ProtoUtils {
     }
     builder.build()
   }
+  def ckksProtoToBytes(storage: Storage[TensorMap]): (Array[Byte], Array[Byte]) = {
+    // TODO: impl
+    (Array[Byte](), Array[Byte]())
+  }
+
   def tableProtoToOutputTarget(storage: Storage[TensorMap]): (DllibTable, Tensor[Float]) = {
     val aggData = protoTableMapToTensorIterableMap(storage.clientData)
     val target = Tensor[Float]()

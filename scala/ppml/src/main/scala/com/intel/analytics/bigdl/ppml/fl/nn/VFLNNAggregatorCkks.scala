@@ -37,10 +37,9 @@ import org.apache.logging.log4j.LogManager
  * @param validationMethods
  */
 class VFLNNAggregatorCkks(optimMethod: OptimMethod[Float],
-                          criterion: Criterion[Float] = ,
                           validationMethods: Array[ValidationMethod[Float]]) extends NNAggregator{
   val m1 = CAddTable(1)
-  val m2 = FusedBCECriterion(1)
+  val criterion = FusedBCECriterion(1)
 
 
   var validationResult = List[Array[ValidationResult]]()
@@ -53,18 +52,16 @@ class VFLNNAggregatorCkks(optimMethod: OptimMethod[Float],
     val storage = getStorage(flPhase)
     val (inputTable, target) = ProtoUtils.ckksProtoToBytes(storage)
 
-    val output1 = m1.updateOutput(inputTable)
-    val output = m2.forward(output1) // CAddTable should output Tensor[Byte] ?
+    val output = m1.updateOutput(inputTable)
 
     val metaBuilder = MetaData.newBuilder()
     var aggregatedTable: TensorMap = null
     flPhase match {
       case FLPhase.TRAIN =>
         val loss = criterion.forward(output, target)
-        val gradOutputLayer = criterion.backward(output, target)
-        val grad = module.backward(inputTable, gradOutputLayer)
+        val grad = criterion.backward(output, target)
         val meta = metaBuilder.setName("gradInput").setVersion(storage.version).build()
-
+        // Pass byte back to clients
         aggregatedTable = TensorMap.newBuilder()
           .setMetaData(meta)
           .putTensorMap("gradInput", toFloatTensor(grad.toTable.apply[Tensor[Float]](1)))

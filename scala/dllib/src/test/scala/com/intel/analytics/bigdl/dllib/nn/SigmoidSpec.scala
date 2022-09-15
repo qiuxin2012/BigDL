@@ -20,9 +20,10 @@ import com.intel.analytics.bigdl.ckks.CKKS
 import com.intel.analytics.bigdl.dllib.NNContext
 import com.intel.analytics.bigdl.dllib.feature.FeatureSet
 import com.intel.analytics.bigdl.dllib.feature.dataset.{DataSet, Sample, SampleToMiniBatch, TensorSample}
+import com.intel.analytics.bigdl.dllib.nn.ckks.{Encryptor, FusedBCECriterion}
 import com.intel.analytics.bigdl.dllib.optim.{Adagrad, Ftrl, SGD}
 import org.scalatest.FlatSpec
-import com.intel.analytics.bigdl.dllib.tensor.Tensor
+import com.intel.analytics.bigdl.dllib.tensor.{Storage, Tensor}
 import com.intel.analytics.bigdl.dllib.utils.{Engine, RandomGenerator, T, TestUtils}
 import com.intel.analytics.bigdl.dllib.utils.serializer.ModuleSerializationTest
 import org.apache.spark.ml.linalg.DenseVector
@@ -88,6 +89,54 @@ class SigmoidSpec extends FlatSpec {
     })
     TestUtils.conditionFailTest(input == inputOrg)
     TestUtils.conditionFailTest(gradOutput == gradOutputOrg)
+  }
+
+  "ckks layer" should "generate correct output and grad" in {
+    val eps = 1e-12f
+    val module = new Sigmoid[Float]
+    val criterion = new BCECriterion[Float]()
+
+    val input = Tensor[Float](2, 2)
+    input(Array(1, 1)) = 0.063364277360961f
+    input(Array(1, 2)) = 0.90631252736785f
+    input(Array(2, 1)) = 0.22275671223179f
+    input(Array(2, 2)) = 0.37516756891273f
+    val target = Tensor[Float](2, 2)
+    target(Array(1, 1)) = 1
+    target(Array(1, 2)) = 1
+    target(Array(2, 1)) = 0
+    target(Array(2, 2)) = 1
+
+    val exceptedOutput = module.forward(input)
+
+    val exceptedLoss = criterion.forward(exceptedOutput, target)
+    val exceptedGradOutput = criterion.backward(exceptedOutput, target)
+    val exceptedGradInput = module.backward(input, exceptedGradOutput)
+
+
+    val ckks = new CKKS()
+    val secrets = ckks.createSecrets()
+    val encryptorPtr = ckks.createCkksEncryptor(secrets)
+    val ckksRunnerPtr = ckks.createCkksCommonInstance(secrets)
+    val enTarget =
+      Tensor[Byte](Storage[Byte](ckks.ckksEncrypt(encryptorPtr, target.storage().array())))
+        .resize(target.size())
+
+    val module2 = Encryptor[Float](encryptorPtr)
+    val criterion2 = FusedBCECriterion(ckksRunnerPtr)
+
+    val output2 = module2.forward(input).toTensor[Byte]
+    val loss2 = criterion2.forward(output2, enTarget)
+    val gradOutput2 = criterion2.backward(output2, enTarget)
+    val gradInput2 = module2.backward(input, gradOutput2).toTensor[Float]
+
+
+    val enLoss = ckks.ckksDecrypt(encryptorPtr, loss2.storage().array)
+    gradInput2.div(4)
+    val loss = enLoss.slice(0, 4).sum / 4
+    println(loss + "  "  + exceptedLoss)
+    println(gradInput2)
+    println(exceptedGradInput)
   }
 
   "ckks" should "generate correct output and grad" in {

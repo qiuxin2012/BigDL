@@ -75,13 +75,13 @@ class VFLNNEstimator(algorithm: String,
         val target = miniBatch.getTarget()
         if (target == null) hasLabel = false
         model.training()
+        model.zeroGradParameters()
         val output = model.forward(input)
 
         // Upload to PS
         val metadata = MetaData.newBuilder
               .setName(s"${model.getName()}_output").setVersion(iteration).build
         val tableProto = outputTargetToTableProto(model.output, target, metadata)
-        model.zeroGradParameters()
         val gradInput = flClient.nnStub.train(tableProto, algorithm).getData
 
         // model replace

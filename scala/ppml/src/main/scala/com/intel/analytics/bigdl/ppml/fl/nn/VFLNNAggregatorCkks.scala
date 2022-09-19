@@ -34,10 +34,11 @@ import org.apache.logging.log4j.LogManager
  * @param optimMethod
  * @param validationMethods
  */
-class VFLNNAggregatorCkks(optimMethod: OptimMethod[Float],
+class VFLNNAggregatorCkks(ckksCommon: Long,
+                          optimMethod: OptimMethod[Float] = null,
                           validationMethods: Array[ValidationMethod[Float]] = null) extends NNAggregator{
-  val m1 = CAddTable(1)
-  val criterion = FusedBCECriterion(1)
+  val m1 = CAddTable(ckksCommon)
+  val criterion = FusedBCECriterion(ckksCommon)
 
 
   var validationResult = List[Array[ValidationResult]]()

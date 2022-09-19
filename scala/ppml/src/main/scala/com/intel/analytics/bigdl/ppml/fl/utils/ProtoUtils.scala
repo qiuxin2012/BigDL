@@ -16,6 +16,7 @@
 
 package com.intel.analytics.bigdl.ppml.fl.utils
 
+import com.google.protobuf.ByteString
 import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.dllib.nn.abstractnn.Activity
 import com.intel.analytics.bigdl.dllib.tensor.Tensor
@@ -34,6 +35,8 @@ import scala.collection.JavaConverters._
 import com.intel.analytics.bigdl.dllib.utils.Log4Error
 import com.intel.analytics.bigdl.ppml.fl.FLClient
 import com.intel.analytics.bigdl.ppml.fl.generated.FlBaseProto
+
+import scala.collection.mutable.ArrayBuffer
 
 object ProtoUtils {
   private val logger = LogManager.getLogger(getClass)
@@ -54,9 +57,23 @@ object ProtoUtils {
     }
     builder.build()
   }
-  def ckksProtoToBytes(storage: Storage[TensorMap]): (Array[Byte], Array[Byte]) = {
+  def ckksProtoToBytes(storage: Storage[TensorMap]): (Array[Array[Byte]], Array[Byte]) = {
     // TODO: impl
-    (Array[Byte](), Array[Byte]())
+    val arrayBuffer = new ArrayBuffer[Array[Byte]](storage.clientData.size())
+    var targetBytes: Array[Byte] = null
+    storage.clientData.values().asScala.foreach(clientMap => {
+      val tensorMap = clientMap.getEncryptedTensorMapMap().asScala
+      if (tensorMap.contains("target")) {
+        Log4Error.invalidOperationError(targetBytes == null, "Target already exists")
+        targetBytes = tensorMap.get("target").get.getTensor.toByteArray
+      }
+      arrayBuffer.append(tensorMap.get("output").get.getTensor.toByteArray)
+    })
+    (arrayBuffer.toArray, targetBytes)
+  }
+  def bytesToCkksProto(bytes: Array[Byte]) = {
+    EncryptedTensor.newBuilder().setTensor(ByteString.copyFrom(bytes)).build()
+
   }
 
   def tableProtoToOutputTarget(storage: Storage[TensorMap]): (DllibTable, Tensor[Float]) = {

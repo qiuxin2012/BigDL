@@ -20,7 +20,7 @@ package com.intel.analytics.bigdl.ppml.fl.nn
 import com.intel.analytics.bigdl.dllib.nn.ckks.{CAddTable, FusedBCECriterion}
 import com.intel.analytics.bigdl.dllib.optim.{OptimMethod, ValidationMethod, ValidationResult}
 import com.intel.analytics.bigdl.dllib.tensor.Tensor
-import com.intel.analytics.bigdl.dllib.utils.T
+import com.intel.analytics.bigdl.dllib.utils.{Log4Error, T}
 import com.intel.analytics.bigdl.ppml.fl.common.FLPhase
 import com.intel.analytics.bigdl.ppml.fl.generated.FlBaseProto._
 import com.intel.analytics.bigdl.ppml.fl.utils.ProtoUtils
@@ -31,13 +31,11 @@ import org.apache.logging.log4j.LogManager
 
 /**
  *
- * @param model
  * @param optimMethod
- * @param criterion loss function, HFL takes loss at estimator, VFL takes loss at aggregator
  * @param validationMethods
  */
 class VFLNNAggregatorCkks(optimMethod: OptimMethod[Float],
-                          validationMethods: Array[ValidationMethod[Float]]) extends NNAggregator{
+                          validationMethods: Array[ValidationMethod[Float]] = null) extends NNAggregator{
   val m1 = CAddTable(1)
   val criterion = FusedBCECriterion(1)
 
@@ -52,45 +50,31 @@ class VFLNNAggregatorCkks(optimMethod: OptimMethod[Float],
     val storage = getStorage(flPhase)
     val (inputTable, target) = ProtoUtils.ckksProtoToBytes(storage)
 
-    val output = m1.updateOutput(inputTable)
+    val output = m1.updateOutput(inputTable: _*)
 
     val metaBuilder = MetaData.newBuilder()
     var aggregatedTable: TensorMap = null
     flPhase match {
       case FLPhase.TRAIN =>
+
         val loss = criterion.forward(output, target)
         val grad = criterion.backward(output, target)
         val meta = metaBuilder.setName("gradInput").setVersion(storage.version).build()
         // Pass byte back to clients
         aggregatedTable = TensorMap.newBuilder()
           .setMetaData(meta)
-          .putTensorMap("gradInput", toFloatTensor(grad.toTable.apply[Tensor[Float]](1)))
-          .putTensorMap("loss", toFloatTensor(Tensor[Float](T(loss))))
+          .putEncryptedTensorMap("gradInput", ProtoUtils.bytesToCkksProto(grad))
+          .putEncryptedTensorMap("loss", ProtoUtils.bytesToCkksProto(loss))
           .build()
 
       case FLPhase.EVAL =>
-        val batchValidationResult = validationMethods.map(vMethod => {
-          vMethod.apply(output, target)
-        })
-        validationResult = validationResult :+ batchValidationResult
-        if (shouldReturn) {
-          val result = validationResult.reduce((x, y) => {
-            x.zip(y).map {
-              case (r1, r2) => r1 + r2
-            }
-          })
-          setReturnMessage(result.toString)
-        }
-        val meta = metaBuilder.setName("evaluateResult").setVersion(storage.version).build()
-        aggregatedTable = TensorMap.newBuilder()
-          .setMetaData(meta)
-          .build()
+        Log4Error.invalidOperationError(false, "Not supported")
 
       case FLPhase.PREDICT =>
         val meta = metaBuilder.setName("predictResult").setVersion(storage.version).build()
         aggregatedTable = TensorMap.newBuilder()
           .setMetaData(meta)
-          .putTensorMap("predictOutput", toFloatTensor(output.toTensor[Float]))
+          .putEncryptedTensorMap("predictOutput", ProtoUtils.bytesToCkksProto(output))
           .build()
     }
     storage.clearClientAndUpdateServer(aggregatedTable)

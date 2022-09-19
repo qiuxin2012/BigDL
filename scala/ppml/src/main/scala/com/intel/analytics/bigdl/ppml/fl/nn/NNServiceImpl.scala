@@ -47,6 +47,7 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
     aggregatorMap.put("vfl_linear_regression", VFLNNAggregator(1, View[Float](),
       null, MSECriterion[Float](), Array(new Top1Accuracy())))
     aggregatorMap.put("hfl_logistic_regression", new HFLNNAggregator())
+    aggregatorMap.put("vfl_logistic_regression_ckks", new VFLNNAggregatorCkks(null))
     aggregatorMap.asScala.foreach(entry => {
       entry._2.setClientNum(clientNum)
     })

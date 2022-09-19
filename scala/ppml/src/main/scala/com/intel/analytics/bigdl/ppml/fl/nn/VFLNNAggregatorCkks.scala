@@ -82,27 +82,3 @@ class VFLNNAggregatorCkks(ckksCommon: Long,
   }
 
 }
-
-object VFLNNAggregator {
-  val logger = LogManager.getLogger(this.getClass)
-
-  def apply(clientNum: Int,
-            classifier: Module[Float],
-            optimMethod: OptimMethod[Float],
-            criterion: Criterion[Float]): VFLNNAggregator = {
-    val vflNNAggregator = new VFLNNAggregator(classifier, optimMethod, criterion, null)
-    vflNNAggregator.setClientNum(clientNum)
-    vflNNAggregator
-  }
-
-  def apply(clientNum: Int,
-            classifier: Module[Float],
-            optimMethod: OptimMethod[Float],
-            criterion: Criterion[Float],
-            validationMethods: Array[ValidationMethod[Float]]): VFLNNAggregator = {
-    val vflNNAggregator = new VFLNNAggregator(
-      classifier, optimMethod, criterion, validationMethods)
-    vflNNAggregator.setClientNum(clientNum)
-    vflNNAggregator
-  }
-}

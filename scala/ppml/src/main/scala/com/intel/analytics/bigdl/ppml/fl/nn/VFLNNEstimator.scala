@@ -86,7 +86,7 @@ class VFLNNEstimator(algorithm: String,
 
         // model replace
         val errors = getTensor("gradInput", gradInput)
-        val loss = getTensor("loss", gradInput).value()
+        val loss = getTensor("loss", gradInput).mean()
         model.backward(input, errors)
         logger.debug(s"Model doing backward, version: $iteration")
         optimMethod.optimize(_ => (loss, grad), weight)

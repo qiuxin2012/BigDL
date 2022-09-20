@@ -82,11 +82,11 @@ class VFLNNEstimator(algorithm: String,
         val metadata = MetaData.newBuilder
               .setName(s"${model.getName()}_output").setVersion(iteration).build
         val tableProto = outputTargetToTableProto(model.output, target, metadata)
-        val gradInput = flClient.nnStub.train(tableProto, algorithm).getData
+        val gradInput = flClient.nnStub.train(tableProto, algorithm)
 
         // model replace
         val errors = getTensor("gradInput", gradInput)
-        val loss = getTensor("loss", gradInput).value()
+        val loss = getTensor("loss", gradInput).mean()
         model.backward(input, errors)
         logger.debug(s"Model doing backward, version: $iteration")
         optimMethod.optimize(_ => (loss, grad), weight)
@@ -162,7 +162,7 @@ class VFLNNEstimator(algorithm: String,
       val metadata = MetaData.newBuilder
         .setName(s"${model.getName()}_output").setVersion(iteration).build
       val tableProto = outputTargetToTableProto(model.output, target, metadata)
-      val result = flClient.nnStub.predict(tableProto, algorithm).getData
+      val result = flClient.nnStub.predict(tableProto, algorithm)
       resultSeq = resultSeq :+ getTensor("predictOutput", result)
       iteration += 1
       count += miniBatch.size()

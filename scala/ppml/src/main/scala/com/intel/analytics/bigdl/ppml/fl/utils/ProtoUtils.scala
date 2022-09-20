@@ -161,7 +161,9 @@ object ProtoUtils {
     val dataMap = modelData.getTensorMapMap.get(name)
     val data = dataMap.getTensorList.asScala.map(Float2float).toArray
     val shape = dataMap.getShapeList.asScala.map(Integer2int).toArray
-    Tensor[Float](data, shape)
+    var totalSize = 1
+    shape.foreach(dimSize => totalSize *= dimSize)
+    Tensor[Float](data.slice(0, totalSize), shape)
   }
 
 

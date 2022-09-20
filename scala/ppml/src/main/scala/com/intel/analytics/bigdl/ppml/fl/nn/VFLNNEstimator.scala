@@ -82,7 +82,7 @@ class VFLNNEstimator(algorithm: String,
         val metadata = MetaData.newBuilder
               .setName(s"${model.getName()}_output").setVersion(iteration).build
         val tableProto = outputTargetToTableProto(model.output, target, metadata)
-        val gradInput = flClient.nnStub.train(tableProto, algorithm).getData
+        val gradInput = flClient.nnStub.train(tableProto, algorithm)
 
         // model replace
         val errors = getTensor("gradInput", gradInput)
@@ -162,7 +162,7 @@ class VFLNNEstimator(algorithm: String,
       val metadata = MetaData.newBuilder
         .setName(s"${model.getName()}_output").setVersion(iteration).build
       val tableProto = outputTargetToTableProto(model.output, target, metadata)
-      val result = flClient.nnStub.predict(tableProto, algorithm).getData
+      val result = flClient.nnStub.predict(tableProto, algorithm)
       resultSeq = resultSeq :+ getTensor("predictOutput", result)
       iteration += 1
       count += miniBatch.size()

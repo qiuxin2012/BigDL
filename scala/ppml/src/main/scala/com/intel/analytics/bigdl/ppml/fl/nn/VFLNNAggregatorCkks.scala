@@ -49,7 +49,7 @@ class VFLNNAggregatorCkks(ckksCommon: Long,
    */
   override def aggregate(flPhase: FLPhase): Unit = {
     val storage = getStorage(flPhase)
-    val (inputTable, target) = ProtoUtils.ckksProtoToBytes(storage)
+    val (inputTable, target, shapeGrad, shapeLoss) = ProtoUtils.ckksProtoToBytes(storage)
 
     val output = m1.updateOutput(inputTable: _*)
 
@@ -64,8 +64,8 @@ class VFLNNAggregatorCkks(ckksCommon: Long,
         // Pass byte back to clients
         aggregatedTable = TensorMap.newBuilder()
           .setMetaData(meta)
-          .putEncryptedTensorMap("gradInput", ProtoUtils.bytesToCkksProto(grad))
-          .putEncryptedTensorMap("loss", ProtoUtils.bytesToCkksProto(loss))
+          .putEncryptedTensorMap("gradInput", ProtoUtils.bytesToCkksProto(grad, shapeGrad))
+          .putEncryptedTensorMap("loss", ProtoUtils.bytesToCkksProto(loss, shapeLoss))
           .build()
 
       case FLPhase.EVAL =>
@@ -75,7 +75,7 @@ class VFLNNAggregatorCkks(ckksCommon: Long,
         val meta = metaBuilder.setName("predictResult").setVersion(storage.version).build()
         aggregatedTable = TensorMap.newBuilder()
           .setMetaData(meta)
-          .putEncryptedTensorMap("predictOutput", ProtoUtils.bytesToCkksProto(output))
+          .putEncryptedTensorMap("predictOutput", ProtoUtils.bytesToCkksProto(output, shapeGrad))
           .build()
     }
     storage.clearClientAndUpdateServer(aggregatedTable)

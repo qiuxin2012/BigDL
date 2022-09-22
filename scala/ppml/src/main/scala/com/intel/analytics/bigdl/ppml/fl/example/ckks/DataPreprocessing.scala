@@ -122,6 +122,7 @@ class DataPreprocessing(spark: SparkSession,
         wideBaseDims = Array(6),
         indicatorCols = Array("rela"),
         indicatorDims = Array(6),
+        // TODO: the error may well be the missed field here
         continuousCols = Array("capital_gain",
           "capital_loss", "hours_per_week"))
     }

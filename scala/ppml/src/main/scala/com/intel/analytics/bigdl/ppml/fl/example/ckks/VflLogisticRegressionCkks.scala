@@ -1,0 +1,43 @@
+package com.intel.analytics.bigdl.ppml.fl.example
+
+import com.intel.analytics.bigdl.ckks.CKKS
+import com.intel.analytics.bigdl.dllib.NNContext
+import com.intel.analytics.bigdl.dllib.feature.dataset.{DataSet, Sample, SampleToMiniBatch, TensorSample}
+import com.intel.analytics.bigdl.dllib.nn.{BCECriterion, Sigmoid, SparseLinear}
+import com.intel.analytics.bigdl.dllib.optim.{Adagrad, Ftrl, SGD}
+import com.intel.analytics.bigdl.dllib.tensor.{Storage, Tensor}
+import com.intel.analytics.bigdl.dllib.utils.{Engine, RandomGenerator, T}
+import com.intel.analytics.bigdl.ppml.fl.FLServer
+import com.intel.analytics.bigdl.ppml.fl.example.ckks.Client
+import io.grpc.netty.shaded.io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler.ClientHandshakeStateEvent
+import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.{SparkConf, SparkContext}
+import scopt.OptionParser
+
+import java.util
+
+
+object VflLogisticRegressionCkks {
+  case class CmdArgs(dataPath: String = null)
+  val parser = new OptionParser[CmdArgs]("PPML CKKS example") {
+    opt[String]('d', "dataPath")
+      .text("data path")
+      .action((x, c) => c.copy(dataPath = x))
+      .required()
+  }
+
+  def main(args: Array[String]): Unit = {
+    val inputDir = parser.parse(args, CmdArgs()).head.dataPath
+    val flServer = new FLServer()
+    flServer.setClientNum(2)
+    flServer.build()
+    flServer.start()
+    val dllibClient1 = new Client(
+      s"$inputDir/adult-1.data", s"$inputDir/adult-1.test", 1, "dllib")
+    val dllibClient2 = new Client(
+      s"$inputDir/adult-2.data", s"$inputDir/adult-2.test", 2, "dllib")
+    dllibClient1.start()
+    dllibClient2.start()
+  }
+
+}

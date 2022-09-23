@@ -36,12 +36,16 @@ class Client(trainDataPath: String,
     val epochNum = 20
     var accTime: Long = 0
     (0 until epochNum).foreach { epoch =>
+      println(epoch)
       trainDataset.shuffle()
       val trainData = trainDataset.toLocal().data(false)
+      var count = 0
       while (trainData.hasNext) {
+        println(count)
         val miniBatch = trainData.next()
         val input = miniBatch.getInput()
         val currentBs = input.toTensor[Float].size(1)
+        count += currentBs
         val target = miniBatch.getTarget()
         val dllibStart = System.nanoTime()
         lr.trainStep(input, target)
@@ -57,19 +61,22 @@ class Client(trainDataPath: String,
       val miniBatch = evalData.next()
       val input = miniBatch.getInput()
       val currentBs = input.toTensor[Float].size(1)
-      val target = miniBatch.getTarget().toTensor[Float]
+      val targets = miniBatch.getTarget()
       val predict = lr.predictStep(input)
       println(s"Predicting $appName")
-      (0 until currentBs).foreach { i =>
-        val dllibPre = predict.toTensor[Float].valueAt(i)
-        val t = target.valueAt(i + 1, 1)
-        if (t == 0) {
-          if (dllibPre <= 0.5) {
-            accDllib += 1
-          }
-        } else {
-          if (dllibPre > 0.5) {
-            accDllib += 1
+      if (targets != null) {
+        val target = targets.toTensor[Float]
+        (0 until currentBs).foreach { i =>
+          val dllibPre = predict.toTensor[Float].valueAt(i + 1, 1)
+          val t = target.valueAt(i + 1, 1)
+          if (t == 0) {
+            if (dllibPre <= 0.5) {
+              accDllib += 1
+            }
+          } else {
+            if (dllibPre > 0.5) {
+              accDllib += 1
+            }
           }
         }
         //        println(t + " " + dllibPre + " " + ckksPre)

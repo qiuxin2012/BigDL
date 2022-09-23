@@ -28,7 +28,6 @@ class Client(trainDataPath: String,
       case "ckks" => new VFLLogisticRegressionCkks(learningRate = 0.001f, customModel = linear)
       case _ => throw new Error()
     }
-    lr.estimator
 
     val epochNum = 20
     var accTime: Long = 0

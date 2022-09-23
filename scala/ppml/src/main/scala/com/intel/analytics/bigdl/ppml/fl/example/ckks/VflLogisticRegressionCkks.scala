@@ -18,26 +18,36 @@ import java.util
 
 
 object VflLogisticRegressionCkks {
-  case class CmdArgs(dataPath: String = null)
+  case class CmdArgs(dataPath: String = null,
+                     clientId: Int = 1)
   val parser = new OptionParser[CmdArgs]("PPML CKKS example") {
     opt[String]('d', "dataPath")
       .text("data path")
       .action((x, c) => c.copy(dataPath = x))
       .required()
+    opt[Int]('i', "id")
+      .text("client id")
+      .action((x, c) => c.copy(clientId = x))
+      .required()
   }
 
+
   def main(args: Array[String]): Unit = {
-    val inputDir = parser.parse(args, CmdArgs()).head.dataPath
-    val flServer = new FLServer()
-    flServer.setClientNum(2)
-    flServer.build()
-    flServer.start()
-    val dllibClient1 = new Client(
-      s"$inputDir/adult-1.data", s"$inputDir/adult-1.test", 1, "dllib")
-    val dllibClient2 = new Client(
-      s"$inputDir/adult-2.data", s"$inputDir/adult-2.test", 2, "dllib")
-    dllibClient1.start()
-    dllibClient2.start()
+    parser.parse(args, CmdArgs()).map { param =>
+      val inputDir = param.dataPath
+      val clientId = param.clientId
+      //    val flServer = new FLServer()
+      //    flServer.setClientNum(2)
+      //    flServer.build()
+      //    flServer.start()
+      val dllibClient1 = new Client(
+        s"$inputDir/adult-${clientId}.data", s"$inputDir/adult-${clientId}.test", clientId, "dllib")
+      //    val dllibClient2 = new Client(
+      //      s"$inputDir/adult-2.data", s"$inputDir/adult-2.test", 2, "dllib")
+      dllibClient1.start()
+    }
+//    dllibClient2.start()
+
   }
 
 }

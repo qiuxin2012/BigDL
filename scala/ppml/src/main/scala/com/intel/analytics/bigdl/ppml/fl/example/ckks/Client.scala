@@ -3,7 +3,7 @@ package com.intel.analytics.bigdl.ppml.fl.example.ckks
 import com.intel.analytics.bigdl.dllib.NNContext
 import com.intel.analytics.bigdl.dllib.nn.SparseLinear
 import com.intel.analytics.bigdl.dllib.utils.{Log4Error, RandomGenerator}
-import com.intel.analytics.bigdl.ppml.fl.NNModel
+import com.intel.analytics.bigdl.ppml.fl.{FLContext, NNModel}
 import com.intel.analytics.bigdl.ppml.fl.algorithms.{VFLLogisticRegression, VFLLogisticRegressionCkks}
 import com.intel.analytics.bigdl.ppml.fl.utils.FlContextForTest
 import org.apache.spark.sql.SparkSession
@@ -13,8 +13,7 @@ class Client(trainDataPath: String,
              clientId: Int,
              appName: String) extends Thread {
   override def run(): Unit = {
-    val testFlContext = new FlContextForTest()
-    testFlContext.initFLContext(clientId.toString, "localhost:8980")
+    FLContext.initFLContext(clientId.toString)
     val sqlContext = SparkSession.builder().getOrCreate()
     val pre = new DataPreprocessing(sqlContext, trainDataPath, testDataPath, clientId)
     val (trainDataset, validationDataset) = pre.loadCensusData()
@@ -29,7 +28,7 @@ class Client(trainDataPath: String,
       case "ckks" => new VFLLogisticRegressionCkks(learningRate = 0.001f, customModel = linear)
       case _ => throw new Error()
     }
-
+    lr.estimator
 
     val epochNum = 20
     var accTime: Long = 0

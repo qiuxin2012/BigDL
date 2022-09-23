@@ -31,6 +31,7 @@ object VflLogisticRegressionCkks {
       .required()
   }
 
+
   def main(args: Array[String]): Unit = {
     parser.parse(args, CmdArgs()).map { param =>
       val inputDir = param.dataPath
@@ -46,6 +47,7 @@ object VflLogisticRegressionCkks {
       dllibClient1.start()
     }
 //    dllibClient2.start()
+
   }
 
 }

@@ -274,20 +274,20 @@ class DataPreprocessing(spark: SparkSession,
     val label = if (clientId == 2) {
       val l = r.getAs[Int](columnInfo.label)
       val label = Tensor[Float](T(l))
-      label.resize(1)
+      Array(label.resize(1))
     } else {
-      Tensor[Float]()
+      Array[Tensor[Float]]()
     }
 
 
 
     modelType match {
       case "wide_n_deep" =>
-        TensorSample[Float](Array(wideTensor, deepTensor), Array(label))
+        TensorSample[Float](Array(wideTensor, deepTensor), label)
       case "wide" =>
-        TensorSample[Float](Array(wideTensor), Array(label))
+        TensorSample[Float](Array(wideTensor), label)
       case "deep" =>
-        TensorSample[Float](Array(deepTensor), Array(label))
+        TensorSample[Float](Array(deepTensor), label)
       case _ =>
         throw new IllegalArgumentException("unknown type")
     }

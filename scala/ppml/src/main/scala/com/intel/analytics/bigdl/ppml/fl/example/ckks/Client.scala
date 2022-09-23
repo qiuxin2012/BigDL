@@ -18,7 +18,11 @@ class Client(trainDataPath: String,
     val pre = new DataPreprocessing(sqlContext, trainDataPath, testDataPath, clientId)
     val (trainDataset, validationDataset) = pre.loadCensusData()
 
-    val numFeature = 3049
+    val numFeature = if(clientId == 1) {
+      3043
+    } else {
+      6
+    }
 
     RandomGenerator.RNG.setSeed(2L)
     val linear = SparseLinear[Float](numFeature, 1)

@@ -67,6 +67,9 @@ class FLClient(val _args: Array[String]) extends GrpcClientBase(_args) {
     fgbostStub = new FGBoostStub(channel, clientUUID)
   }
 
+  def initCkks(secret: Array[Array[Byte]]): Unit = {
+    nnStub = new NNStub(channel, clientUUID, secret)
+  }
   override def shutdown(): Unit = {
     try channel.shutdown.awaitTermination(5, TimeUnit.SECONDS)
     catch {

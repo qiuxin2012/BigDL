@@ -24,8 +24,8 @@ class CAddTable(val ckksCommonPtr: Long) {
     //  Log4Error.invalidInputError(input.size().sameElements(target.size()),
     //  s"input size should be equal to target size, but got input size: ${input.size().toList}," +
     //  s" target size: ${target.size().toList}")
-    var ckksOutput = ckks.cadd(ckksCommonPtr, input(0), input(1))
-    if (input.size > 2) {
+    var ckksOutput = input(0)
+    if (input.size > 1) {
       (2 to input.size).foreach{i =>
         ckksOutput = ckks.cadd(ckksCommonPtr, ckksOutput, input(i))
       }

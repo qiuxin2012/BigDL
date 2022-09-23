@@ -19,7 +19,6 @@ package com.intel.analytics.bigdl.ppml.fl.algorithms
 import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.dllib.nn.{Linear, Sequential}
 import com.intel.analytics.bigdl.dllib.optim.Adam
-import com.intel.analytics.bigdl.dllib.tensor.Tensor
 import com.intel.analytics.bigdl.dllib.utils.Log4Error
 import com.intel.analytics.bigdl.ppml.fl.NNModel
 import com.intel.analytics.bigdl.ppml.fl.nn.VFLNNEstimator
@@ -30,16 +29,16 @@ import com.intel.analytics.bigdl.ppml.fl.utils.FLClientClosable
  * @param featureNum
  * @param learningRate
  */
-class VFLLogisticRegression(featureNum: Int = -1,
-                            learningRate: Float = 0.005f,
-                            customModel: Module[Float] = null) extends NNModel() {
-  Log4Error.invalidInputError(featureNum != -1 || customModel != null,
-    "Either featureNum or customModel should be provided")
+class VFLLogisticRegressionCkks(featureNum: Int = -1,
+                                learningRate: Float = 0.005f,
+                                customModel: Module[Float] = null) extends NNModel () {
+  Log4Error.invalidInputError (featureNum != -1 || customModel != null,
+  "Either featureNum or customModel should be provided")
   val clientModule = if (customModel == null) {
-    Linear[Float](featureNum, 1)
+  Linear[Float] (featureNum, 1)
   } else customModel
-  val model = Sequential[Float]().add(clientModule)
+  val model = Sequential[Float]().add(Linear(featureNum, 1))
   override val estimator = new VFLNNEstimator(
-    "vfl_logistic_regression", model, new Adam(learningRate))
+    "vfl_logistic_regression_ckks", model, new Adam(learningRate))
 
 }

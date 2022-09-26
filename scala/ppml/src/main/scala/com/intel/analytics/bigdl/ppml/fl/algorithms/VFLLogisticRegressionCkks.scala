@@ -39,6 +39,6 @@ class VFLLogisticRegressionCkks(featureNum: Int = -1,
   } else customModel
   val model = Sequential[Float]().add(clientModule)
   override val estimator = new VFLNNEstimator(
-    "vfl_logistic_regression", model, new Adagrad(learningRate))
+    "vfl_logistic_regression_ckks", model, new Adagrad(learningRate))
 
 }

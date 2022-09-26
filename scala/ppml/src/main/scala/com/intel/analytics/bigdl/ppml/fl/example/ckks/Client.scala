@@ -39,7 +39,6 @@ class Client(trainDataPath: String,
       6
     }
 
-//    RandomGenerator.RNG.setSeed(2L)
     val linear = if (clientId == 1) {
       SparseLinear[Float](numFeature, 1, withBias = false)
     } else {
@@ -55,9 +54,10 @@ class Client(trainDataPath: String,
 
     val epochNum = 40
     var accTime: Long = 0
+    RandomGenerator.RNG.setSeed(2L)
     (0 until epochNum).foreach { epoch =>
       println(epoch)
-//      trainDataset.shuffle()
+      trainDataset.shuffle()
       val trainData = trainDataset.toLocal().data(false)
       var count = 0
       while (trainData.hasNext) {

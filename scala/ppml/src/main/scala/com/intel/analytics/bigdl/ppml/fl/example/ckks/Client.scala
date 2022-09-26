@@ -1,3 +1,18 @@
+/*
+ * Copyright 2016 The BigDL Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.intel.analytics.bigdl.ppml.fl.example.ckks
 
 import com.intel.analytics.bigdl.dllib.NNContext
@@ -18,26 +33,31 @@ class Client(trainDataPath: String,
     val pre = new DataPreprocessing(sqlContext, trainDataPath, testDataPath, clientId)
     val (trainDataset, validationDataset) = pre.loadCensusData()
 
-    val numFeature = if(clientId == 1) {
+    val numFeature = if (clientId == 1) {
       3043
     } else {
       6
     }
 
-    RandomGenerator.RNG.setSeed(2L)
-    val linear = SparseLinear[Float](numFeature, 1)
+//    RandomGenerator.RNG.setSeed(2L)
+    val linear = if (clientId == 1) {
+      SparseLinear[Float](numFeature, 1, withBias = false)
+    } else {
+      SparseLinear[Float](numFeature, 1, withBias = true)
+    }
+    linear.getParameters()._1.randn(0, 0.001)
 
     val lr: NNModel = appName match {
-      case "dllib" => new VFLLogisticRegression(learningRate = 0.001f, customModel = linear)
-      case "ckks" => new VFLLogisticRegressionCkks(learningRate = 0.001f, customModel = linear)
+      case "dllib" => new VFLLogisticRegression(numFeature, 0.005f, linear)
+      case "ckks" => new VFLLogisticRegressionCkks(numFeature, 0.005f, linear)
       case _ => throw new Error()
     }
 
-    val epochNum = 20
+    val epochNum = 40
     var accTime: Long = 0
     (0 until epochNum).foreach { epoch =>
       println(epoch)
-      trainDataset.shuffle()
+//      trainDataset.shuffle()
       val trainData = trainDataset.toLocal().data(false)
       var count = 0
       while (trainData.hasNext) {

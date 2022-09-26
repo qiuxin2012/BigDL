@@ -708,7 +708,7 @@ class SigmoidSpec extends FlatSpec {
           acc + index
         }
       }).toArray
-      val values = indices.map(_ + 1.0f)
+      val values = indices.map(_ => 1.0f)
       val shape = Array(wideDims.sum)
 
       Tensor.sparse(Array(indices), values, shape)
@@ -851,9 +851,9 @@ class SigmoidSpec extends FlatSpec {
     val linear = SparseLinear[Float](numFeature, 1)
     val sigmoid = Sigmoid[Float]()
     val criterion = new BCECriterion[Float]()
-    val sgd = new Adagrad[Float](0.001)
+    val sgd = new Adagrad[Float](0.005)
     //    val sgd2 = new SGD[Float](0.5, learningRateDecay = 1e-4)
-    val sgd2 = new Adagrad[Float](0.001)
+    val sgd2 = new Adagrad[Float](0.005)
     val (weight, gradient) = linear.getParameters()
     weight.randn(0, 0.001)
 
@@ -866,7 +866,7 @@ class SigmoidSpec extends FlatSpec {
     val ckksRunnerPtr = ckks.createCkksCommonInstance(secrets)
 
     var a = 0
-    val epochNum = 20
+    val epochNum = 40
     val lossArray = new Array[Float](epochNum)
     val loss2Array = new Array[Float](epochNum)
     var ckksTime = Array(0L, 0L, 0L)

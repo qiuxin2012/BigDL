@@ -18,7 +18,7 @@ package com.intel.analytics.bigdl.ppml.fl.algorithms
 
 import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.dllib.nn.{Linear, Sequential}
-import com.intel.analytics.bigdl.dllib.optim.Adam
+import com.intel.analytics.bigdl.dllib.optim.{Adagrad, Adam}
 import com.intel.analytics.bigdl.dllib.utils.Log4Error
 import com.intel.analytics.bigdl.ppml.fl.NNModel
 import com.intel.analytics.bigdl.ppml.fl.nn.VFLNNEstimator
@@ -37,8 +37,8 @@ class VFLLogisticRegressionCkks(featureNum: Int = -1,
   val clientModule = if (customModel == null) {
   Linear[Float] (featureNum, 1)
   } else customModel
-  val model = Sequential[Float]().add(Linear(featureNum, 1))
+  val model = Sequential[Float]().add(clientModule)
   override val estimator = new VFLNNEstimator(
-    "vfl_logistic_regression_ckks", model, new Adam(learningRate))
+    "vfl_logistic_regression_ckks", model, new Adagrad(learningRate))
 
 }

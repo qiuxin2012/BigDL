@@ -53,6 +53,7 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
 
   def initCkksAggregator(secretPath: String): Unit = {
     val secret = CKKS.loadSecret(secretPath)
+    initCkksAggregator(secret)
   }
   def initCkksAggregator(secret: Array[Array[Byte]]): Unit = {
     val ckks = new CKKS()
@@ -65,13 +66,13 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
   override def train(request: TrainRequest,
                      responseObserver: StreamObserver[TrainResponse]): Unit = {
     val clientUUID = request.getClientuuid
-    logger.debug("Server get train request from client: " + clientUUID)
+    logger.info("Server get train request from client: " + clientUUID)
     val data = request.getData
     val version = data.getMetaData.getVersion
     val aggregator = aggregatorMap.get(request.getAlgorithm)
     try {
       aggregator.putClientData(TRAIN, clientUUID, version, new DataHolder(data))
-      logger.debug(s"$clientUUID getting server new data to update local")
+      logger.info(s"$clientUUID getting server new data to update local")
       val responseData = aggregator.getStorage(TRAIN).serverData
       if (responseData == null) {
         val response = "Data requested doesn't exist"

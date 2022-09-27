@@ -1,3 +1,18 @@
+/*
+ * Copyright 2016 The BigDL Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.intel.analytics.bigdl.ppml.fl.example.ckks
 
 import com.intel.analytics.bigdl.DataSet
@@ -259,7 +274,7 @@ class DataPreprocessing(spark: SparkSession,
         acc + index
       }
     }).toArray
-    val values = indices.map(_ + 1.0f)
+    val values = indices.map(_ => 1.0f)
     val shape = Array(wideDims.sum)
 
     Tensor.sparse(Array(indices), values, shape)
@@ -274,20 +289,20 @@ class DataPreprocessing(spark: SparkSession,
     val label = if (clientId == 2) {
       val l = r.getAs[Int](columnInfo.label)
       val label = Tensor[Float](T(l))
-      label.resize(1)
+      Array(label.resize(1))
     } else {
-      Tensor[Float]()
+      Array[Tensor[Float]]()
     }
 
 
 
     modelType match {
       case "wide_n_deep" =>
-        TensorSample[Float](Array(wideTensor, deepTensor), Array(label))
+        TensorSample[Float](Array(wideTensor, deepTensor), label)
       case "wide" =>
-        TensorSample[Float](Array(wideTensor), Array(label))
+        TensorSample[Float](Array(wideTensor), label)
       case "deep" =>
-        TensorSample[Float](Array(deepTensor), Array(label))
+        TensorSample[Float](Array(deepTensor), label)
       case _ =>
         throw new IllegalArgumentException("unknown type")
     }

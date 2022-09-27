@@ -30,7 +30,6 @@ class Client(trainDataPath: String,
              appName: String) extends Thread {
   override def run(): Unit = {
     FLContext.initFLContext(clientId.toString)
-    FLContext.initCkks("scala/ppml/src/main/scala/com/intel/analytics/bigdl/ppml/fl/example/ckks/ckksSecret")
     val sqlContext = SparkSession.builder().getOrCreate()
     val pre = new DataPreprocessing(sqlContext, trainDataPath, testDataPath, clientId)
     val (trainDataset, validationDataset) = pre.loadCensusData()
@@ -50,7 +49,9 @@ class Client(trainDataPath: String,
 
     val lr: NNModel = appName match {
       case "dllib" => new VFLLogisticRegression(numFeature, 0.005f, linear)
-      case "ckks" => new VFLLogisticRegressionCkks(numFeature, 0.005f, linear)
+      case "ckks" =>
+        FLContext.initCkks("ppml/src/main/scala/com/intel/analytics/bigdl/ppml/fl/example/ckks/ckksSecret")
+        new VFLLogisticRegression(numFeature, 0.005f, linear, "vfl_logistic_regression_ckks")
       case _ => throw new Error()
     }
 

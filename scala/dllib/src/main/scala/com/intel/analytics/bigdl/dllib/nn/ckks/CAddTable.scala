@@ -26,7 +26,7 @@ class CAddTable(val ckksCommonPtr: Long) {
     //  s" target size: ${target.size().toList}")
     var ckksOutput = input(0)
     if (input.size > 1) {
-      (2 to input.size).foreach{i =>
+      (1 until input.size).foreach{i =>
         ckksOutput = ckks.cadd(ckksCommonPtr, ckksOutput, input(i))
       }
     }

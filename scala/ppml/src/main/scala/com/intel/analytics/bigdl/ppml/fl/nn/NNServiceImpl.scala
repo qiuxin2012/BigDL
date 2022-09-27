@@ -87,6 +87,7 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
     } catch {
       case e: Exception =>
         val errorMsg = ExceptionUtils.getStackTrace(e)
+        logger.error(errorMsg)
         val response = TrainResponse.newBuilder.setResponse(errorMsg).setCode(1).build
         responseObserver.onNext(response)
         responseObserver.onCompleted()
@@ -128,6 +129,7 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
     } catch {
       case e: Exception =>
         val errorMsg = ExceptionUtils.getStackTrace(e)
+        logger.error(errorMsg)
         val response = EvaluateResponse.newBuilder.setResponse(errorMsg).setCode(1).build
         responseObserver.onNext(response)
         responseObserver.onCompleted()
@@ -157,6 +159,7 @@ class NNServiceImpl(clientNum: Int) extends NNServiceGrpc.NNServiceImplBase {
     } catch {
       case e: Exception =>
         val errorMsg = ExceptionUtils.getStackTrace(e)
+        logger.error(errorMsg)
         val response = PredictResponse.newBuilder.setResponse(errorMsg).setCode(1).build
         responseObserver.onNext(response)
         responseObserver.onCompleted()

@@ -30,7 +30,7 @@ class Client(trainDataPath: String,
              appName: String) extends Thread {
   override def run(): Unit = {
     FLContext.initFLContext(clientId.toString)
-    FLContext.initCkks("/home/xin/datasets/adult2/ckksSecret")
+    FLContext.initCkks("scala/ppml/src/main/scala/com/intel/analytics/bigdl/ppml/fl/example/ckks/ckksSecret")
     val sqlContext = SparkSession.builder().getOrCreate()
     val pre = new DataPreprocessing(sqlContext, trainDataPath, testDataPath, clientId)
     val (trainDataset, validationDataset) = pre.loadCensusData()

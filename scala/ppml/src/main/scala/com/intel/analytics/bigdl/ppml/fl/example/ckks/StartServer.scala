@@ -22,7 +22,8 @@ object StartServer {
   def main(args: Array[String]): Unit = {
     val flServer = new FLServer()
     flServer.setClientNum(2)
-    flServer.setCkksAggregator(CKKS.loadSecret("/home/xin/datasets/adult2/ckksSecret"))
+    flServer.setCkksAggregator(
+      CKKS.loadSecret("scala/ppml/src/main/scala/com/intel/analytics/bigdl/ppml/fl/example/ckks/ckksSecret"))
     flServer.build()
     flServer.start()
     flServer.blockUntilShutdown()

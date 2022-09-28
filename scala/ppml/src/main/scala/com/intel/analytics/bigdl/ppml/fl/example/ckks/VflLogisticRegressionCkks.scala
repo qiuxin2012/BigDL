@@ -56,7 +56,9 @@ object VflLogisticRegressionCkks {
       //    flServer.build()
       //    flServer.start()
       val dllibClient1 = new Client(
-        s"$inputDir/adult-${clientId}.data", s"$inputDir/adult-${clientId}.test", clientId, "ckks")
+        s"$inputDir/adult-${clientId}.data", s"$inputDir/adult-${clientId}.test",
+//        clientId, "dllib")
+        clientId, "ckks")
       //    val dllibClient2 = new Client(
       //      s"$inputDir/adult-2.data", s"$inputDir/adult-2.test", 2, "dllib")
       dllibClient1.start()

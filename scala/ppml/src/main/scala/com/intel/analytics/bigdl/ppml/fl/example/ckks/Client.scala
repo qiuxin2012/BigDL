@@ -35,9 +35,9 @@ class Client(trainDataPath: String,
     val (trainDataset, validationDataset) = pre.loadCensusData()
 
     val numFeature = if (clientId == 1) {
-      3043
+      3049 - 6 - 1000 - 11 - 9 - 7
     } else {
-      6
+      6 + 1000 + 11 + 9 + 7
     }
 
     val linear = if (clientId == 1) {

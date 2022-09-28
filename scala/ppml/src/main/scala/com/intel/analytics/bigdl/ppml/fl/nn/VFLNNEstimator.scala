@@ -89,6 +89,9 @@ class VFLNNEstimator(algorithm: String,
     model.training()
     model.zeroGradParameters()
     val output = model.forward(input)
+    println(output.toTensor[Float].mean())
+    println(output.toTensor[Float].min())
+    println(output.toTensor[Float].max())
 
     // Upload to PS
     val metadata = MetaData.newBuilder

@@ -52,29 +52,46 @@ class DataPreprocessing(spark: SparkSession,
                    )
   val batchSize = 8192
   val modelType = "wide"
-  val recordSchema = if (clientId == 1) {
-    StructType(Array(
-      StructField("age", IntegerType, false),
-      StructField("workclass", StringType, false),
-      StructField("fnlwgt", IntegerType, false),
-      StructField("education", StringType, false),
-      StructField("education_num", IntegerType, false),
-      StructField("marital_status", StringType, false),
-      StructField("occupation", StringType, false)
-      ))
-    } else {
-    StructType(Array(
-        StructField("relationship", StringType, false),
-        StructField("race", StringType, false),
-        StructField("gender", StringType, false),
-        StructField("capital_gain", IntegerType, false),
-        StructField("capital_loss", IntegerType, false),
-        StructField("hours_per_week", IntegerType, false),
-        StructField("native_country", StringType, false),
-        StructField("income_bracket", StringType, false)
-      ))
-    }
+//  val recordSchema = if (clientId == 1) {
+//    StructType(Array(
+//      StructField("age", IntegerType, false),
+//      StructField("workclass", StringType, false),
+//      StructField("fnlwgt", IntegerType, false),
+//      StructField("education", StringType, false),
+//      StructField("education_num", IntegerType, false),
+//      StructField("marital_status", StringType, false),
+//      StructField("occupation", StringType, false)
+//      ))
+//    } else {
+//    StructType(Array(
+//        StructField("relationship", StringType, false),
+//        StructField("race", StringType, false),
+//        StructField("gender", StringType, false),
+//        StructField("capital_gain", IntegerType, false),
+//        StructField("capital_loss", IntegerType, false),
+//        StructField("hours_per_week", IntegerType, false),
+//        StructField("native_country", StringType, false),
+//        StructField("income_bracket", StringType, false)
+//      ))
+//    }
 
+  val recordSchema = StructType(Array(
+    StructField("age", IntegerType, false),
+    StructField("workclass", StringType, false),
+    StructField("fnlwgt", IntegerType, false),
+    StructField("education", StringType, false),
+    StructField("education_num", IntegerType, false),
+    StructField("marital_status", StringType, false),
+    StructField("occupation", StringType, false),
+    StructField("relationship", StringType, false),
+    StructField("race", StringType, false),
+    StructField("gender", StringType, false),
+    StructField("capital_gain", IntegerType, false),
+    StructField("capital_loss", IntegerType, false),
+    StructField("hours_per_week", IntegerType, false),
+    StructField("native_country", StringType, false),
+    StructField("income_bracket", StringType, false)
+  ))
 
 
   case class RecordSample[T: ClassTag](sample: Sample[T])
@@ -83,37 +100,59 @@ class DataPreprocessing(spark: SparkSession,
 
   def loadCensusData():
     (DataSet[MiniBatch[Float]], DataSet[MiniBatch[Float]]) = {
-    val training = spark.sparkContext
-      .textFile(trainDataPath)
-      .map(_.split(",").map(_.trim))
-      .map(array => {
-        val castedArray = new Array[Any](array.size)
-        array.indices.foreach(i => {
-          if (array(i).forall(Character.isDigit(_))) {
-            castedArray(i) = array(i).toInt
-          } else {
-            castedArray(i) = array(i)
-          }
-        })
-        val r = Row(castedArray: _*)
-        r
-      })
+//    val training = spark.sparkContext
+//      .textFile(trainDataPath)
+//      .map(_.split(",").map(_.trim))
+//      .map(array => {
+//        val castedArray = new Array[Any](array.size)
+//        array.indices.foreach(i => {
+//          if (array(i).forall(Character.isDigit(_))) {
+//            castedArray(i) = array(i).toInt
+//          } else {
+//            castedArray(i) = array(i)
+//          }
+//        })
+//        val r = Row(castedArray: _*)
+//        r
+//      })
+//
+//    val validation = spark.sparkContext
+//      .textFile(testDataPath)
+//      .map(_.dropRight(1)) // remove dot at the end of each line in adult.test
+//      .map(_.split(",").map(_.trim))
+//      .map(array => {
+//        val castedArray = new Array[Any](array.size)
+//        array.indices.foreach(i => {
+//          if (array(i) != "" && array(i).forall(Character.isDigit(_))) {
+//            castedArray(i) = array(i).toInt
+//          } else {
+//            castedArray(i) = array(i)
+//          }
+//        })
+//        Row(castedArray: _*)
+//      })
 
-    val validation = spark.sparkContext
-      .textFile(testDataPath)
-      .map(_.dropRight(1)) // remove dot at the end of each line in adult.test
-      .map(_.split(",").map(_.trim))
-      .map(array => {
-        val castedArray = new Array[Any](array.size)
-        array.indices.foreach(i => {
-          if (array(i) != "" && array(i).forall(Character.isDigit(_))) {
-            castedArray(i) = array(i).toInt
-          } else {
-            castedArray(i) = array(i)
-          }
-        })
-        Row(castedArray: _*)
-      })
+      val training = spark.sparkContext
+        .textFile(trainDataPath)
+        .map(_.split(",").map(_.trim))
+        .filter(_.size == 15).map(array =>
+        Row(
+          array(0).toInt, array(1), array(2).toInt, array(3), array(4).toInt,
+          array(5), array(6), array(7), array(8), array(9),
+          array(10).toInt, array(11).toInt, array(12).toInt, array(13), array(14)
+        )
+      )
+
+      val validation = spark.sparkContext
+        .textFile(testDataPath)
+        .map(_.dropRight(1))  // remove dot at the end of each line in adult.test
+        .map(_.split(",").map(_.trim))
+        .filter(_.size == 15).map(array =>
+        Row(
+          array(0).toInt, array(1), array(2).toInt, array(3), array(4).toInt,
+          array(5), array(6), array(7), array(8), array(9),
+          array(10).toInt, array(11).toInt, array(12).toInt, array(13), array(14)
+        ))
 
     val (trainDf, valDf) = (spark.createDataFrame(training, recordSchema),
       spark.createDataFrame(validation, recordSchema))
@@ -121,8 +160,8 @@ class DataPreprocessing(spark: SparkSession,
     println(trainDf.show(10))
     val localColumnInfo = if (clientId == 1) {
       ColumnFeatureInfo(
-        wideBaseCols = Array("edu", "mari", "work", "occ", "age_bucket"),
-        wideBaseDims = Array(16, 7, 9, 1000, 11),
+        wideBaseCols = Array("edu"),
+        wideBaseDims = Array(16),
         wideCrossCols = Array("edu_occ", "age_edu_occ"),
         wideCrossDims = Array(1000, 1000),
         indicatorCols = Array("work", "edu", "mari"),
@@ -133,8 +172,8 @@ class DataPreprocessing(spark: SparkSession,
         continuousCols = Array("age", "education_num"))
     } else {
       ColumnFeatureInfo(
-        wideBaseCols = Array("rela"),
-        wideBaseDims = Array(6),
+        wideBaseCols = Array("rela", "occ", "age_bucket", "work", "mari"),
+        wideBaseDims = Array(6, 1000, 11, 9, 7),
         indicatorCols = Array("rela"),
         indicatorDims = Array(6),
         // TODO: the error may well be the missed field here
@@ -341,21 +380,32 @@ class DataPreprocessing(spark: SparkSession,
 
     val incomeUdf = udf((income: String) => if (income == ">50K" || income == ">50K.") 1 else 0)
 
-    val data = if (clientId == 1) {
-      dataDf
-        .withColumn("age_bucket", ageBucketUdf(col("age")))
-        .withColumn("edu_occ", bucket2Udf(col("education"), col("occupation")))
-        .withColumn("age_edu_occ", bucket3Udf(col("age_bucket"), col("education"),
-          col("occupation")))
-        .withColumn("edu", educationVocabUdf(col("education")))
-        .withColumn("mari", maritalStatusVocabUdf(col("marital_status")))
-        .withColumn("work", workclassVocabUdf(col("workclass")))
-        .withColumn("occ", bucket1Udf(col("occupation")))
-    } else {
-      dataDf
-        .withColumn("rela", relationshipVocabUdf(col("relationship")))
-        .withColumn("label", incomeUdf(col("income_bracket")))
-    }
+//    val data = if (clientId == 1) {
+//      dataDf
+//        .withColumn("edu_occ", bucket2Udf(col("education"), col("occupation")))
+//        .withColumn("age_edu_occ", bucket3Udf(col("age_bucket"), col("education"),
+//          col("occupation")))
+//        .withColumn("edu", educationVocabUdf(col("education")))
+//        .withColumn("mari", maritalStatusVocabUdf(col("marital_status")))
+//        .withColumn("work", workclassVocabUdf(col("workclass")))
+//    } else {
+//      dataDf
+//        .withColumn("rela", relationshipVocabUdf(col("relationship")))
+//        .withColumn("occ", bucket1Udf(col("occupation")))
+//        .withColumn("age_bucket", ageBucketUdf(col("age")))
+//        .withColumn("label", incomeUdf(col("income_bracket")))
+//    }
+    val data = dataDf
+      .withColumn("age_bucket", ageBucketUdf(col("age")))
+      .withColumn("edu_occ", bucket2Udf(col("education"), col("occupation")))
+      .withColumn("age_edu_occ", bucket3Udf(col("age_bucket"), col("education"),
+        col("occupation")))
+      .withColumn("edu", educationVocabUdf(col("education")))
+      .withColumn("mari", maritalStatusVocabUdf(col("marital_status")))
+      .withColumn("rela", relationshipVocabUdf(col("relationship")))
+      .withColumn("work", workclassVocabUdf(col("workclass")))
+      .withColumn("occ", bucket1Udf(col("occupation")))
+      .withColumn("label", incomeUdf(col("income_bracket")))
     val rddOfSample = data.rdd.map(r => {
       RecordSample(row2SampleSequential(r, columnInfo, modelType))
     })

@@ -24,7 +24,7 @@ from bigdl.dllib.utils import log4Error
 from bigdl.dllib.utils.file_utils import get_file_list, is_local_path
 from bigdl.orca.data import SparkXShards
 from bigdl.orca.data.utils import get_size
-from bigdl.orca.data.file import put_local_dir_tree_to_remote, put_local_file_to_remote,\
+from bigdl.orca.data.file import put_local_dir_tree_to_remote, put_local_file_to_remote, \
     get_remote_file_to_local, get_remote_dir_to_local
 from bigdl.dllib.utils.utils import convert_row_to_numpy
 from functools import partial
@@ -199,6 +199,11 @@ def convert_predict_rdd_to_dataframe(df, prediction_rdd):
     result_df = combined_rdd.toDF(columns)
     return result_df
 
+def _wrap_arrs(arrs):
+    if len(arrs) == 1:
+        return arrs[0]
+    else:
+        return tuple(arrs)
 
 def _merge_rows(results):
     try:
@@ -211,6 +216,7 @@ def _merge_rows(results):
         result_arrs = result_arrs[0]
     else:
         result_arrs = tuple(result_arrs)
+    # print(" type is: " + str(result_arrs))
     return result_arrs
 
 
@@ -298,6 +304,57 @@ arrays2dict = partial(arrays2others, generate_func=_generate_output_dict)
 arrays2feature_dict = partial(arrays2others, generate_func=_generate_feature_dict)
 arrays2pandas = partial(arrays2others, generate_func=_generate_output_pandas_df)
 
+def arrays2dict2(iter, feature_cols, label_cols, shard_size):
+    has_label = label_cols is not None
+
+    # def newEmpty(fea):
+    #     feature_list = np.empty((shard_size,) + fea.shape, fea.dtype)
+    #     feature_list[0] = fea
+
+    def init_result_lists(row):
+        return [np.empty((shard_size,) + r.shape, r.dtype) for r in row]
+        # feautures = np.empty((len(feature_cols), len(row[0])))
+
+
+    def add_row(data, results, current):
+        if not isinstance(data, list):
+            arrays = [data]
+        else:
+            arrays = data
+
+        for i, arr in enumerate(arrays):
+            results[i][current] = arr
+
+    feature_lists = None
+    label_lists = None
+    counter = 0
+
+    for row in iter:
+        if feature_lists is None:
+            feature_lists = init_result_lists(row[0])
+        add_row(row[0], feature_lists, counter % shard_size)
+        if has_label:
+            if label_lists is None:
+                label_lists = init_result_lists(row[1])
+            add_row(row[1], label_lists, counter % shard_size)
+        counter += 1
+
+        if shard_size and counter % shard_size == 0:
+            if has_label:
+                yield {"x": _wrap_arrs(feature_lists), "y": label_lists}
+            else:
+                yield {"x": _wrap_arrs(feature_lists)}
+            feature_lists = None
+            label_lists = None
+
+    if feature_lists is not None:
+        rest_size = counter % shard_size
+        feature_lists = [feature[0:rest_size] for feature in feature_lists]
+        if has_label:
+            yield {"x": _wrap_arrs(feature_lists), "y": _wrap_arrs(label_lists)}
+        else:
+            yield {"x": _wrap_arrs(feature_lists)}
+
 
 def transform_to_shard_dict(data, feature_cols, label_cols=None):
     def to_shard_dict(df):
@@ -340,10 +397,10 @@ def _dataframe_to_xshards(data, feature_cols, label_cols=None, accept_str_col=Fa
                                                               feature_cols,
                                                               label_cols,
                                                               accept_str_col))
-    shard_rdd = numpy_rdd.mapPartitions(lambda x: arrays2dict(x,
-                                                              feature_cols,
-                                                              label_cols,
-                                                              shard_size))
+    shard_rdd = numpy_rdd.mapPartitions(lambda x: arrays2dict2(x,
+                                                               feature_cols,
+                                                               label_cols,
+                                                               shard_size))
     return SparkXShards(shard_rdd, transient=True)
 
 

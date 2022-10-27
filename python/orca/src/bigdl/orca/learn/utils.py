@@ -199,15 +199,17 @@ def convert_predict_rdd_to_dataframe(df, prediction_rdd):
     result_df = combined_rdd.toDF(columns)
     return result_df
 
-def _wrap_arrs(arrs):
-    if len(arrs) == 1:
-        return arrs[0]
+
+def _stack_arrs(arrs):
+    if isinstance(arrs, list):
+        return np.stack(arrs)
     else:
-        return tuple(arrs)
+        return arrs
+
 
 def _merge_rows(results):
     try:
-        result_arrs = [np.stack(l) for l in results]
+        result_arrs = [_stack_arrs(l) for l in results]
     except ValueError:
         log4Error.invalidInputError(False, "Elements in the same column must have the same "
                                            "shape, please drop, pad or truncate the columns "
@@ -266,55 +268,11 @@ def _generate_output_pandas_df(feature_lists, label_lists, feature_cols, label_c
 
 
 def arrays2others(iter, feature_cols, label_cols, shard_size=None, generate_func=None):
-    def init_result_lists():
-        feature_lists = [[] for col in feature_cols]
-        if label_cols is not None:
-            label_lists = [[] for col in label_cols]
+    def init_result_lists(first_row):
+        if shard_size:
+            return [np.empty((shard_size,) + r.shape, r.dtype) for r in first_row]
         else:
-            label_lists = None
-        return feature_lists, label_lists
-
-    def add_row(data, results):
-        if not isinstance(data, list):
-            arrays = [data]
-        else:
-            arrays = data
-
-        for i, arr in enumerate(arrays):
-            results[i].append(arr)
-
-    feature_lists, label_lists = init_result_lists()
-    counter = 0
-
-    for row in iter:
-        counter += 1
-        add_row(row[0], feature_lists)
-        if label_cols is not None:
-            add_row(row[1], label_lists)
-
-        if shard_size and counter % shard_size == 0:
-            yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
-            feature_lists, label_lists = init_result_lists()
-
-    if feature_lists[0]:
-        yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
-
-
-arrays2dict = partial(arrays2others, generate_func=_generate_output_dict)
-arrays2feature_dict = partial(arrays2others, generate_func=_generate_feature_dict)
-arrays2pandas = partial(arrays2others, generate_func=_generate_output_pandas_df)
-
-def arrays2dict2(iter, feature_cols, label_cols, shard_size):
-    has_label = label_cols is not None
-
-    # def newEmpty(fea):
-    #     feature_list = np.empty((shard_size,) + fea.shape, fea.dtype)
-    #     feature_list[0] = fea
-
-    def init_result_lists(row):
-        return [np.empty((shard_size,) + r.shape, r.dtype) for r in row]
-        # feautures = np.empty((len(feature_cols), len(row[0])))
-
+            return [[] for r in first_row]
 
     def add_row(data, results, current):
         if not isinstance(data, list):
@@ -323,7 +281,11 @@ def arrays2dict2(iter, feature_cols, label_cols, shard_size):
             arrays = data
 
         for i, arr in enumerate(arrays):
-            results[i][current] = arr
+            if shard_size:
+                current = current % shard_size
+                results[i][current] = arr
+            else:
+                results[i].append(arr)
 
     feature_lists = None
     label_lists = None
@@ -333,27 +295,24 @@ def arrays2dict2(iter, feature_cols, label_cols, shard_size):
         if feature_lists is None:
             feature_lists = init_result_lists(row[0])
         add_row(row[0], feature_lists, counter % shard_size)
-        if has_label:
+        if label_cols is not None:
             if label_lists is None:
                 label_lists = init_result_lists(row[1])
             add_row(row[1], label_lists, counter % shard_size)
         counter += 1
 
         if shard_size and counter % shard_size == 0:
-            if has_label:
-                yield {"x": _wrap_arrs(feature_lists), "y": label_lists}
-            else:
-                yield {"x": _wrap_arrs(feature_lists)}
+            yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
             feature_lists = None
             label_lists = None
 
-    if feature_lists is not None:
-        rest_size = counter % shard_size
-        feature_lists = [feature[0:rest_size] for feature in feature_lists]
-        if has_label:
-            yield {"x": _wrap_arrs(feature_lists), "y": _wrap_arrs(label_lists)}
-        else:
-            yield {"x": _wrap_arrs(feature_lists)}
+    if feature_lists[0]:
+        yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
+
+
+arrays2dict = partial(arrays2others, generate_func=_generate_output_dict)
+arrays2feature_dict = partial(arrays2others, generate_func=_generate_feature_dict)
+arrays2pandas = partial(arrays2others, generate_func=_generate_output_pandas_df)
 
 
 def transform_to_shard_dict(data, feature_cols, label_cols=None):
@@ -397,7 +356,7 @@ def _dataframe_to_xshards(data, feature_cols, label_cols=None, accept_str_col=Fa
                                                               feature_cols,
                                                               label_cols,
                                                               accept_str_col))
-    shard_rdd = numpy_rdd.mapPartitions(lambda x: arrays2dict2(x,
+    shard_rdd = numpy_rdd.mapPartitions(lambda x: arrays2dict(x,
                                                                feature_cols,
                                                                label_cols,
                                                                shard_size))

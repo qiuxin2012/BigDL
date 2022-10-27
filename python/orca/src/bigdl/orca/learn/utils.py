@@ -301,11 +301,19 @@ def arrays2others(iter, feature_cols, label_cols, shard_size=None, generate_func
         counter += 1
 
         if shard_size and counter % shard_size == 0:
+            # output put a shard when current shard is full
             yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
             feature_lists = None
             label_lists = None
 
     if feature_lists is not None:
+        if shard_size:
+            # remove empty array in last shard
+            rest_size = counter % shard_size
+            feature_lists = [feature[0:rest_size] for feature in feature_lists]
+            if label_cols is not None:
+                label_lists = [label[0:rest_size] for label in label_lists]
+        # output last shard
         yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
 
 

@@ -24,7 +24,7 @@ from bigdl.dllib.utils import log4Error
 from bigdl.dllib.utils.file_utils import get_file_list, is_local_path
 from bigdl.orca.data import SparkXShards
 from bigdl.orca.data.utils import get_size
-from bigdl.orca.data.file import put_local_dir_tree_to_remote, put_local_file_to_remote, \
+from bigdl.orca.data.file import put_local_dir_tree_to_remote, put_local_file_to_remote,\
     get_remote_file_to_local, get_remote_dir_to_local
 from bigdl.dllib.utils.utils import convert_row_to_numpy
 from functools import partial
@@ -218,7 +218,6 @@ def _merge_rows(results):
         result_arrs = result_arrs[0]
     else:
         result_arrs = tuple(result_arrs)
-    # print(" type is: " + str(result_arrs))
     return result_arrs
 
 
@@ -294,11 +293,11 @@ def arrays2others(iter, feature_cols, label_cols, shard_size=None, generate_func
     for row in iter:
         if feature_lists is None:
             feature_lists = init_result_lists(row[0])
-        add_row(row[0], feature_lists, counter % shard_size)
+        add_row(row[0], feature_lists, counter)
         if label_cols is not None:
             if label_lists is None:
                 label_lists = init_result_lists(row[1])
-            add_row(row[1], label_lists, counter % shard_size)
+            add_row(row[1], label_lists, counter)
         counter += 1
 
         if shard_size and counter % shard_size == 0:
@@ -306,7 +305,7 @@ def arrays2others(iter, feature_cols, label_cols, shard_size=None, generate_func
             feature_lists = None
             label_lists = None
 
-    if feature_lists[0]:
+    if feature_lists is not None:
         yield generate_func(feature_lists, label_lists, feature_cols, label_cols)
 
 
@@ -357,9 +356,9 @@ def _dataframe_to_xshards(data, feature_cols, label_cols=None, accept_str_col=Fa
                                                               label_cols,
                                                               accept_str_col))
     shard_rdd = numpy_rdd.mapPartitions(lambda x: arrays2dict(x,
-                                                               feature_cols,
-                                                               label_cols,
-                                                               shard_size))
+                                                              feature_cols,
+                                                              label_cols,
+                                                              shard_size))
     return SparkXShards(shard_rdd, transient=True)
 
 

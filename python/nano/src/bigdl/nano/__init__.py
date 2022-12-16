@@ -39,3 +39,17 @@ def _check_nano_envs():
 
 # disable env check for now, as it does not work for tf and windows
 # _check_nano_envs()
+
+import os
+import psutil
+num_threads = int(os.getenv("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
+
+
+def get_num_threads():
+    return num_threads
+
+
+def set_num_threads(num):
+    global num_threads
+    num_threads = num
+

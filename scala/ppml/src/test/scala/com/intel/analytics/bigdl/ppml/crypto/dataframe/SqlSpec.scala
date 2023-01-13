@@ -50,8 +50,19 @@ class SqlSpec extends DataFrameHelper {
 //    sparkSession.sql("create table People(name string, age int, job string)" +
 //      " row format delimited fields terminated by ',';")
 //    sparkSession.sql(s"LOAD DATA LOCAL INPATH '${plainFileName}' OVERWRITE INTO TABLE People;")
-    val r = sparkSession.sql(s"select count(*) from People")
+//    sparkSession.sql("create table People_copy(name string, age int, job string)" +
+//      " row format delimited fields terminated by ',';")
+    sparkSession.sql("set io.compression.codecs=com.intel.analytics.bigdl.ppml.crypto.CryptoCodec")
+    sparkSession.sql(s"set bigdl.kms.data.key=$dataKeyPlaintext")
+    sparkSession.sql("set hive.exec.compress.output=true")
+    sparkSession.sql("set mapreduce.output.fileoutputformat.compress.codec=" +
+      "com.intel.analytics.bigdl.ppml.crypto.CryptoCodec")
 
+    val r = sparkSession.sql(s"select count(*) from People")
+    val r2 = sparkSession.sql("insert into People_copy select * from People")
+    val r3 = sparkSession.sql("select * from People_copy")
+    val rr = r.collect()
+    val rr3 = r3.collect()
     println(r.take(1))
 
 

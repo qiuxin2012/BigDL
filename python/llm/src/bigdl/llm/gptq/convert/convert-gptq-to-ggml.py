@@ -76,6 +76,20 @@ def to_ggml_int16(eweight):
     return qweight.astype(np.int16)
 
 
+def to_ggml_int32(eweight):
+    qweight = np.zeros((eweight.shape[0], eweight.shape[1], eweight.shape[2] // 8), dtype=np.uint32)
+    for i in range(0, qweight.shape[2]):
+        qweight[:, :, i] = eweight[:, :, i * 4 + 0]
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 32] << 1 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 1] << 2 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 33] << 3 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 2] << 4 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 34] << 5 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 3] << 6 * 4
+        qweight[:, :, i] |= eweight[:, :, i * 4 + 35] << 7 * 4
+    return qweight.astype(np.int32)
+
+
 def qzeros_to_zeros(qzeros, bits=4):
     zeros = np.zeros((qzeros.shape[0], qzeros.shape[1] * (32 // bits)), dtype=np.float32)
     i = 0
@@ -121,13 +135,17 @@ def convert_q4(src_name, dst_name, model, fout, n_head, permute=False):
     # Since the output format is mixed between integers and floats, we have
     # to hackily view the floats as int32s just so numpy will let us
     # concatenate them.
-    addends_view = np.asarray(addends, dtype=np.float16).view(dtype=np.int16)
-    scales_view = np.asarray(scales, dtype=np.float16).view(dtype=np.int16)
+    # addends_view = np.asarray(addends, dtype=np.float16).view(dtype=np.int16)
+    # scales_view = np.asarray(scales, dtype=np.float16).view(dtype=np.int16)
+    addends_view = np.asarray(addends, dtype=np.float32).view(dtype=np.int32)
+    scales_view = np.asarray(scales, dtype=np.float32).view(dtype=np.int32)
+
 
     # Split into groups of 8 columns (i.e. 64 columns of quantized data):
     # TODO: Only support act-order=false
     expanded = expandToInt4(qweight.reshape([qweight.shape[0], qweight.shape[1] // 8, 8]))
-    grouped = to_ggml_int16(expanded)
+    # grouped = to_ggml_int16(expanded)
+    grouped = to_ggml_int32(expanded)
 
     # Repeat addends and scales:
     if addends_view.shape[1] == grouped.shape[1]:

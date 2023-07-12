@@ -21,6 +21,10 @@ from bigdl.llm.ggml.quantize import ggml_tensor_qtype
 from bigdl.llm.utils.common import invalidInputError
 
 
+def save_low_bit(self, *args, **kwargs):
+    self.save_pretrained(*args, **kwargs)
+
+
 class _BaseAutoModelClass:
 
     HF_MODEL = None
@@ -68,10 +72,8 @@ class _BaseAutoModelClass:
         model = ggml_convert_quant(model, qtype)
         model.config.update({"bigdl_transformers_low_bit": q_k})
 
-        def save_low_bit(self, args):
-            self.save_pretrained(*args)
         import types
-        model.save_load_bit = types.MethodType(save_low_bit, model)
+        model.save_low_bit = types.MethodType(save_low_bit, model)
 
         return model
 

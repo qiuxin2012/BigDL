@@ -2445,9 +2445,9 @@ class BenchmarkWrapper:
             if this_peer_finished and not synced_gpus:
                 break
         
-        print(f"=========First token cost {first_token_time:.4f}s=========")
+        print(f"=========First token cost {first_token_time:.4f} s=========")
         if len(last_token_time) > 1:
-            print(f"=========Rest tokens cost average {np.mean(last_token_time):.4f}s ({len(last_token_time)} tokens in all)=========")
+            print(f"=========Rest tokens cost average {np.mean(last_token_time):.4f} s ({len(last_token_time)} tokens in all)=========")
 
         if streamer is not None:
             streamer.end()
@@ -3058,9 +3058,9 @@ class BenchmarkWrapper:
             beam_indices=beam_indices,
         )
 
-        print(f"=========First token cost {first_token_time}s=========")
+        print(f"=========First token cost {first_token_time} s=========")
         if len(last_token_time) > 1:
-            print(f"=========Rest token cost average {np.mean(last_token_time)}s ({len(last_token_time)}tokens in all)=========")
+            print(f"=========Rest token cost average {np.mean(last_token_time)} s ({len(last_token_time)}tokens in all)=========")
 
         if return_dict_in_generate:
             if not output_scores:

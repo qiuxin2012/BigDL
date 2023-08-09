@@ -69,5 +69,5 @@ if __name__ == '__main__':
         output_ids = model.generate(input_ids, max_new_tokens=32)
         output = model.batch_decode(output_ids)
         true_input = model.batch_decode(input_ids)
-        print(true_input + output[0])
+        print(true_input[0] + output[0])
         end = time.time()

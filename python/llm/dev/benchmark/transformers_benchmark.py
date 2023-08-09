@@ -46,10 +46,6 @@ if __name__ == '__main__':
     model = BenchmarkWrapper(model)
 
     input_str = open(f"prompt/{args.prompt_len}.txt", 'r').read()
-    input_str = input_str.rstrip()
-    if repo_id in ['baichuan-inc/Baichuan-13B-Chat']:
-        input_str = input_str + "."
-    print(input_str)
 
     for i in range(infer_times):
         input_ids = tokenizer.encode(input_str, return_tensors="pt")

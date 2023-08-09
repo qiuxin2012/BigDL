@@ -53,21 +53,17 @@ if __name__ == '__main__':
     print(">> loading and conversion of model costs {}s".format(end-st))
 
     input_str = open(f"prompt/{args.prompt_len}.txt", 'r').read()
-    input_str = input_str.rstrip()
-    if repo_id in ['baichuan-inc/Baichuan-13B-Chat']:
-        input_str = input_str + "."
-    print(input_str)
 
     for i in range(infer_times):
         input_ids = model.tokenize(input_str)
         # As different tokenizer has different encodings,
         # slice the input_ids to ensure the prompt length is required length.
-        print("Origin input_ids is", len(input_ids))
+        # print("Origin input_ids is", len(input_ids))
         input_ids = input_ids[:args.prompt_len]
-        print("Sliced input length is : ", len(input_ids))
+        # print("Sliced input length is : ", len(input_ids))
         st = time.time()
         output_ids = model.generate(input_ids, max_new_tokens=32)
         output = model.batch_decode(output_ids)
         true_input = model.batch_decode(input_ids)
-        print(true_input[0] + output[0])
+        print(true_input + output[0])
         end = time.time()

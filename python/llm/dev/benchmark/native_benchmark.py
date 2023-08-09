@@ -19,7 +19,7 @@ if __name__ == '__main__':
                         help='the local caching hub dir.')
     parser.add_argument('--prompt-len', type=int, default=32,
                         help='prompt length to infer.')
-    parser.add_argument('--infer-times', type=int, default=3,
+    parser.add_argument('--infer-times', type=int, default=1,
                         help='inference times for tests.')
     parser.add_argument('--model-family', type=str, default="llama",
                         help='The model family of the loaded model.')

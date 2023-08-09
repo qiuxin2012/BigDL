@@ -61,9 +61,9 @@ if __name__ == '__main__':
         # print("Origin input_ids is", len(input_ids))
         input_ids = input_ids[:args.prompt_len]
         # print("Sliced input length is : ", len(input_ids))
-        st = time.time()
-        output_ids = model.generate(input_ids, max_new_tokens=32)
-        output = model.batch_decode(output_ids)
         true_input = model.batch_decode(input_ids)
-        print(true_input + output[0])
+        st = time.time()
+        output = model(true_input, max_tokens=32)
+        # output = model.batch_decode(output_ids)
+        print(true_input + output['choices'][0]['text'])
         end = time.time()

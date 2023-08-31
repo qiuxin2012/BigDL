@@ -21,6 +21,8 @@ if __name__ == '__main__':
                         help='prompt length to infer.')
     parser.add_argument('--infer-times', type=int, default=1,
                         help='inference times for tests.')
+    parser.add_argument('--max-tokens', type=int, default=32,
+                        help='max tokens to generate.')
     parser.add_argument('--model-family', type=str, default="llama",
                         help='The model family of the loaded model.')
     args = parser.parse_args()
@@ -28,7 +30,8 @@ if __name__ == '__main__':
     repo_id = args.repo_id
     save_path = args.save_path
     model_family = args.model_family
-    n_ctx = args.prompt_len + 32
+    max_tokens = args.max_tokens
+    n_ctx = args.prompt_len + max_tokens
 
     if args.local_model_hub:
         repo_model_name = repo_id.split("/")[1]
@@ -41,7 +44,7 @@ if __name__ == '__main__':
         outfile=save_path, outtype='int4', model_family=model_family)
     print(f"savepath={save_path}, llmconv={bigdl_llm_path}")
 
-#load the converted model
+    #load the converted model
     from bigdl.llm.transformers import BigdlNativeForCausalLM
     model = BigdlNativeForCausalLM.from_pretrained(bigdl_llm_path, n_ctx=n_ctx)
 
@@ -58,9 +61,9 @@ if __name__ == '__main__':
         input_ids = model.tokenize(input_str)
         # As different tokenizer has different encodings,
         # slice the input_ids to ensure the prompt length is required length.
-        # print("Origin input_ids is", len(input_ids))
+        print("Origin input_ids is", len(input_ids))
         input_ids = input_ids[:args.prompt_len]
-        # print("Sliced input length is : ", len(input_ids))
+        print("Sliced input length is : ", len(input_ids))
         true_input = model.batch_decode(input_ids)
         st = time.time()
         output = model(true_input, max_tokens=32)

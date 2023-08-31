@@ -19,8 +19,11 @@ if __name__ == '__main__':
                         help='prompt length to infer')
     parser.add_argument('--infer-times', type=int, default=3,
                         help='inference times for tests')
+    parser.add_argument('--max-tokens', type=int, default=32,
+                        help='max tokens to generate.')
     args = parser.parse_args()
 
+    max_tokens = args.max_tokens
     repo_id = args.repo_id
     if args.local_model_hub:
         repo_model_name = repo_id.split("/")[1]
@@ -47,15 +50,17 @@ if __name__ == '__main__':
 
     input_str = open(f"prompt/{args.prompt_len}.txt", 'r').read()
 
-    for i in range(infer_times):
-        input_ids = tokenizer.encode(input_str, return_tensors="pt")
-        # As different tokenizer has different encodings,
-        # slice the input_ids to ensure the prompt length is required length.
-        input_ids = input_ids[:, :args.prompt_len]
-        print("input length is : ", input_ids.shape[1])
-        st = time.time()
-        output_ids = model.generate(input_ids, do_sample=False, max_new_tokens=32)
-        output = tokenizer.batch_decode(output_ids)
-        true_input = tokenizer.batch_decode(input_ids)
-        print(true_input[0] + output[0])
-        end = time.time()
+    with torch.inference_mode():
+        for i in range(infer_times):
+            input_ids = tokenizer.encode(input_str, return_tensors="pt")
+            # As different tokenizer has different encodings,
+            # slice the input_ids to ensure the prompt length is required length.
+            input_ids = input_ids[:, :args.prompt_len]
+            print("input length is : ", input_ids.shape[1])
+            st = time.perf_counter()
+            output_ids = model.generate(input_ids, do_sample=False, max_new_tokens=max_tokens)
+            end = time.perf_counter()
+            print("model generate cost: " + str(end - st))
+            output = tokenizer.batch_decode(output_ids)
+            true_input = tokenizer.batch_decode(input_ids)
+            print(true_input[0] + output[0])

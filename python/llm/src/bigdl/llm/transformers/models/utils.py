@@ -104,3 +104,9 @@ def apply_rotary_pos_emb_no_cache_xpu(q, k, position_ids, model_family):
     else:
         invalidInputError(False,
                           f"{model_family} is not supported.")
+
+
+def apply_layer_norm_forward(self, hidden_states):
+    hidden_states, _ = torch.ops.torch_ipex.fast_layer_norm(hidden_states, [self.weight.size(0)],
+                                                            self.weight, self.bias, self.eps)
+    return hidden_states

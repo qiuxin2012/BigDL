@@ -96,7 +96,6 @@ class RotaryEmbedding(torch.nn.Module):
     def cos_sin(
         self,
         seq_len: int,
-        position_ids: torch.Tensor,
         device="cuda",
         dtype=torch.bfloat16,
     ) -> torch.Tensor:
@@ -126,8 +125,11 @@ class RotaryEmbedding(torch.nn.Module):
         sin = sin.squeeze(1).squeeze(0)  # [seq_len, dim]
         cos = cos[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
         sin = sin[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
-
-        return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+        q_embed = (q * cos) + (rotate_half(q) * sin)
+        k_embed = (k * cos) + (rotate_half(k) * sin)
+        q_embed = q_embed.squeeze(1)
+        k_embed = k_embed.squeeze(1)
+        return q_embed, k_embed
 
 
 def _make_causal_mask(
@@ -781,7 +783,8 @@ class RWForCausalLM(RWPreTrainedModel):
         if past_key_values:
             input_ids = input_ids[:, -1].unsqueeze(-1)
 
-            if not self.transformer.use_alibi and attention_mask is not None and position_ids is None:
+            if not self.transformer.alibi and attention_mask is not None and position_ids is None:
+            #if attention_mask is not None and position_ids is None:
                 # create position_ids on the fly for batch generation
                 position_ids = attention_mask.long().cumsum(-1) - 1
                 position_ids.masked_fill_(attention_mask == 0, 1)

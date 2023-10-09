@@ -117,19 +117,14 @@ class RotaryEmbedding(torch.nn.Module):
         return self.cos_cached, self.sin_cached
 
     # def forward(self, q, k):
-    def forward(self, q, k, seq_len, position_ids):
+    def forward(self, q, k, seq_len):
         # batch, seq_len, head_dim = q.shape
         _,q_len,_ = q.shape
         cos, sin = self.cos_sin(seq_len, q.device, q.dtype)
-        cos = cos.squeeze(1).squeeze(0)  # [seq_len, dim]
-        sin = sin.squeeze(1).squeeze(0)  # [seq_len, dim]
-        cos = cos[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
-        sin = sin[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
-        q_embed = (q * cos) + (rotate_half(q) * sin)
-        k_embed = (k * cos) + (rotate_half(k) * sin)
-        q_embed = q_embed.squeeze(1)
-        k_embed = k_embed.squeeze(1)
-        return q_embed, k_embed
+        cos = cos[:,-q_len:]
+        sin = sin[:,-q_len:]
+
+        return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
 def _make_causal_mask(
@@ -273,7 +268,6 @@ class Attention(nn.Module):
         hidden_states: torch.Tensor,
         alibi: torch.Tensor,
         attention_mask: torch.Tensor,
-        position_ids: Optional[torch.LongTensor] = None,
         layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         head_mask: Optional[torch.Tensor] = None,
         use_cache: bool = False,
@@ -300,7 +294,21 @@ class Attention(nn.Module):
             _, seq_len_past, _ = layer_past[0].shape
 
             seq_len = seq_len + seq_len_past
-        query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len, position_ids)
+            print(seq_len)
+            print(seq_len_past)
+            position_ids = torch.tensor([range(seq_len_past, seq_len)], dtype=torch.long).to(query_layer.device)
+            print(position_ids)
+        else:
+            position_ids = torch.tensor([range(0, seq_len + 1)], dtype=torch.long).to(query_layer.device)
+            print(seq_len)
+            print(position_ids)
+
+        from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_no_cache_xpu
+        query_layer, key_layer = apply_rotary_pos_emb_no_cache_xpu(query_layer,
+                                                                   key_layer,
+                                                                   position_ids,
+                                                                   "gpt_neox")
+        #query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -429,7 +437,6 @@ class DecoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         alibi: torch.Tensor,
         attention_mask: torch.Tensor,
-        position_ids: Optional[torch.LongTensor] = None,
         layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         head_mask: Optional[torch.Tensor] = None,
         use_cache: bool = False,
@@ -444,7 +451,6 @@ class DecoderLayer(nn.Module):
             layernorm_output,
             layer_past=layer_past,
             attention_mask=attention_mask,
-            position_ids=position_ids,
             alibi=alibi,
             head_mask=head_mask,
             use_cache=use_cache,
@@ -605,7 +611,6 @@ class RWModel(RWPreTrainedModel):
         input_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], ...]] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.LongTensor] = None,
         inputs_embeds: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
@@ -673,14 +678,6 @@ class RWModel(RWPreTrainedModel):
             alibi = build_alibi_tensor(attention_mask, self.num_heads, dtype=hidden_states.dtype)
         else:
             alibi = None
-            if position_ids is None:
-                device = input_ids.device if input_ids is not None else inputs_embeds.device
-                position_ids = torch.arange(
-                    past_key_values_length, seq_length + past_key_values_length, dtype=torch.long, device=device
-                )
-                position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
-            else:
-                position_ids = position_ids.view(-1, seq_length).long()
 
         causal_mask = self._prepare_attn_mask(
             attention_mask,
@@ -713,7 +710,6 @@ class RWModel(RWPreTrainedModel):
                     hidden_states,
                     alibi,
                     causal_mask,
-                    position_ids,
                     head_mask[i],
                 )
             else:
@@ -721,7 +717,6 @@ class RWModel(RWPreTrainedModel):
                     hidden_states,
                     layer_past=layer_past,
                     attention_mask=causal_mask,
-                    position_ids=position_ids,
                     head_mask=head_mask[i],
                     use_cache=use_cache,
                     output_attentions=output_attentions,
@@ -775,7 +770,6 @@ class RWForCausalLM(RWPreTrainedModel):
         # past: Optional[torch.Tensor] = None,
         past_key_values: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> dict:
         # only last token for input_ids if past is not None
@@ -783,13 +777,6 @@ class RWForCausalLM(RWPreTrainedModel):
         if past_key_values:
             input_ids = input_ids[:, -1].unsqueeze(-1)
 
-            if not self.transformer.alibi and attention_mask is not None and position_ids is None:
-            #if attention_mask is not None and position_ids is None:
-                # create position_ids on the fly for batch generation
-                position_ids = attention_mask.long().cumsum(-1) - 1
-                position_ids.masked_fill_(attention_mask == 0, 1)
-                if past_key_values:
-                    position_ids = position_ids[:, -1].unsqueeze(-1)
             # the cache may be in the stardard format (e.g. in contrastive search), convert to our's format if needed
             # if past[0][0].shape[0] == input_ids.shape[0]:
             #     past = self._convert_to_rw_cache(past)
@@ -809,7 +796,6 @@ class RWForCausalLM(RWPreTrainedModel):
         input_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], ...]] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
@@ -841,7 +827,6 @@ class RWForCausalLM(RWPreTrainedModel):
             input_ids,
             past_key_values=past_key_values,
             attention_mask=attention_mask,
-            position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             use_cache=use_cache,

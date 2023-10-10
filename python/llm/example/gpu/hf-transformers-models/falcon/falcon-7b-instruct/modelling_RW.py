@@ -117,14 +117,45 @@ class RotaryEmbedding(torch.nn.Module):
         return self.cos_cached, self.sin_cached
 
     # def forward(self, q, k):
-    def forward(self, q, k, seq_len):
+    def forward(self, q, k, past_key_values_length, position_ids):
         # batch, seq_len, head_dim = q.shape
         _,q_len,_ = q.shape
+        seq_len = q_len + past_key_values_length
         cos, sin = self.cos_sin(seq_len, q.device, q.dtype)
-        cos = cos[:,-q_len:]
-        sin = sin[:,-q_len:]
+        print("cos.shape is: ", cos.shape)
+        print("sin.shape is: ", sin.shape)
+        cos = cos.squeeze(0)[position_ids]#.unsqueeze(1)
+        sin = sin.squeeze(0)[position_ids]#.unsqueeze(1)
+        print("2cos.shape is: ", cos.shape)
+        print("2sin.shape is: ", sin.shape)
+        _, seq_len, _ = q.shape
+        query_expansion_factor = int(q.shape[0] / cos.shape[0])
+        print("query_expansion_factor is:", query_expansion_factor)
+        if query_expansion_factor > 1:
+            query_cos = torch.repeat_interleave(cos, query_expansion_factor, dim=0)
+            query_sin = torch.repeat_interleave(sin, query_expansion_factor, dim=0)
+        else:
+            query_cos, query_sin = cos, sin
 
-        return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+        key_expansion_factor = int(k.shape[0] / cos.shape[0])
+        print("key_expansion_factor is:", key_expansion_factor)
+        if key_expansion_factor > 1:
+            if key_expansion_factor != query_expansion_factor:
+                key_cos = torch.repeat_interleave(cos, key_expansion_factor, dim=0)
+                key_sin = torch.repeat_interleave(sin, key_expansion_factor, dim=0)
+            else:
+                key_cos, key_sin = query_cos, query_sin
+        else:
+            key_cos, key_sin = cos, sin
+        print("k.shape is: ", k.shape)
+        print("q.shape is: ", q.shape)
+        print("key_sin.shape is: ", key_sin.shape)
+        print("key_cos.shape is: ", key_cos.shape)
+        print("query_sin.shape is: ", query_sin.shape)
+        print("query_cos.shape is: ", query_cos.shape)
+        return (q * query_cos) + (rotate_half(q) * query_sin), (k * key_cos) + (rotate_half(k) * key_sin)
+
+        #return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
 def _make_causal_mask(
@@ -294,29 +325,40 @@ class Attention(nn.Module):
             _, seq_len_past, _ = layer_past[0].shape
 
             seq_len = seq_len + seq_len_past
-            print(seq_len)
-            print(seq_len_past)
             position_ids = torch.tensor([range(seq_len_past, seq_len)], dtype=torch.long).to(query_layer.device)
-            print(position_ids)
         else:
-            position_ids = torch.tensor([range(0, seq_len + 1)], dtype=torch.long).to(query_layer.device)
-            print(seq_len)
-            print(position_ids)
+            position_ids = torch.tensor([range(0, seq_len)], dtype=torch.long).to(query_layer.device)
 
         from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_no_cache_xpu
-        query_layer, key_layer = apply_rotary_pos_emb_no_cache_xpu(query_layer,
-                                                                   key_layer,
-                                                                   position_ids,
-                                                                   "gpt_neox")
+        #print("qsize0: ", query_layer.shape)
+        #print("ksize0: ", key_layer.shape)
+        #dummy_k = torch.empty(query_layer.shape, dtype=query_layer.dtype, device=query_layer.device)
+        #dummy_q = torch.empty(key_layer.shape, dtype=key_layer.dtype, device=key_layer.device)
+        #query_layer, _ = apply_rotary_pos_emb_no_cache_xpu(query_layer,
+        #                                                   dummy_k,
+        #                                                   position_ids,
+        #                                                   "gpt_neox")
+        #_, key_layer = apply_rotary_pos_emb_no_cache_xpu(dummy_q,
+        #                                                 key_layer,
+        #                                                 position_ids,
+        #                                                 "gpt_neox")
+        #print("qsize2: ", query_layer.shape)
+        #print("ksize2: ", key_layer.shape)
+        past_kv_length = 0 if layer_past is None else layer_past[0].shape[1]
+        query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, past_kv_length, position_ids)
         #query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len)
 
+        #print(key_layer)
         if layer_past is not None:
             past_key, past_value = layer_past
             # concatenate along seq_length dimension:
             #  - key: [batch_size * self.num_heads, head_dim, kv_length]
             #  - value: [batch_size * self.num_heads, kv_length, head_dim]
+            #key_layer = key_layer[0:1]
             key_layer = torch.cat((past_key, key_layer), dim=1)
             value_layer = torch.cat((past_value, value_layer), dim=1)
+        #else:
+        #    key_layer = key_layer[0:1]
 
         _, kv_length, _ = key_layer.shape
 

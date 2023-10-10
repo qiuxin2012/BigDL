@@ -329,47 +329,29 @@ class Attention(nn.Module):
         else:
             position_ids = torch.tensor([range(0, seq_len)], dtype=torch.long).to(query_layer.device)
 
-        from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_no_cache_xpu
-        #past_kv_length = 0 if layer_past is None else layer_past[0].shape[1]
-        #query_layer_e, key_layer_e = self.maybe_rotary(query_layer, key_layer, past_kv_length, position_ids)
+        use_fuse_rope = query_layer.device.type == "xpu"
+        use_fuse_rope = use_fuse_rope and not (self.training and query_layer.requires_grad)
+        if use_fuse_rope:
+            # resize qk to 4D to match apply_rotary_pos_emb_no_cache_xpu's requirements.
+            query_layer = query_layer.reshape(batch_size, self.num_heads, q_length, self.head_dim)
+            key_layer = key_layer.reshape(batch_size, self.num_kv, q_length, self.head_dim)
+            from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_no_cache_xpu
+            dummy_q = torch.empty(query_layer.shape, dtype=query_layer.dtype, device=query_layer.device)
+            dummy_k = torch.empty(key_layer.shape, dtype=key_layer.dtype, device=key_layer.device)
+            # use dummy q k, as qk should be the same sizes in apply_rotary_pos_emb_no_cache_xpu.
+            _, query_layer = apply_rotary_pos_emb_no_cache_xpu(dummy_q,
+                                                               query_layer,
+                                                               position_ids,
+                                                               "gpt_neox")
+            _, key_layer = apply_rotary_pos_emb_no_cache_xpu(dummy_k,
+                                                             key_layer,
+                                                             position_ids,
+                                                             "gpt_neox")
+            query_layer = query_layer.reshape(batch_size * self.num_heads, q_length, self.head_dim)
+            key_layer = key_layer.reshape(batch_size * self.num_kv, q_length, self.head_dim)
+        else:
+            query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len)
 
-        #print("qsize0: ", query_layer.shape)
-        #print("ksize0: ", key_layer.shape)
-        dummy_q = torch.empty(query_layer.shape, dtype=query_layer.dtype, device=query_layer.device)
-        dummy_k = torch.empty(key_layer.shape, dtype=key_layer.dtype, device=key_layer.device)
-        #query_layer, _ = apply_rotary_pos_emb_no_cache_xpu(query_layer,
-        #                                                   dummy_k,
-        #                                                   position_ids,
-        #                                                   "gpt_neox")
-        #_, query_layer = apply_rotary_pos_emb_no_cache_xpu(dummy_q,
-        #                                                   query_layer,
-        #                                                   position_ids,
-        #                                                   "gpt_neox")
-        _, key_layer = apply_rotary_pos_emb_no_cache_xpu(dummy_k,
-                                                         key_layer,
-                                                         position_ids,
-                                                         "gpt_neox")
-        qilist = []
-        for i in range(0, query_layer.shape[0]):
-            _, qi = apply_rotary_pos_emb_no_cache_xpu(dummy_k,
-                                                      query_layer[i: i+1],
-                                                      position_ids,
-                                                      "gpt_neox")
-            qilist += qi
-        query_layer = torch.stack(qilist)
-
-
-        #print("qe == q:", torch.isclose(query_layer_e, query_layer))
-        #print(query_layer_e)
-        #print(query_layer)
-        #print("ke == k", torch.isclose(key_layer_e, key_layer))
-        #print(key_layer_e)
-        #print(key_layer)
-        #print("qsize2: ", query_layer.shape)
-        #print("ksize2: ", key_layer.shape)
-        #query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len)
-
-        #print(key_layer)
         if layer_past is not None:
             past_key, past_value = layer_past
             # concatenate along seq_length dimension:
@@ -377,7 +359,6 @@ class Attention(nn.Module):
             #  - value: [batch_size * self.num_heads, kv_length, head_dim]
             key_layer = torch.cat((past_key, key_layer), dim=1)
             value_layer = torch.cat((past_value, value_layer), dim=1)
-        #else:
 
         _, kv_length, _ = key_layer.shape
 

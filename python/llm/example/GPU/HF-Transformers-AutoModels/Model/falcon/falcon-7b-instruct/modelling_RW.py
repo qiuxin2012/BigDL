@@ -1,32 +1,3 @@
-#
-# Copyright 2016 The BigDL Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
-# ===========================================================================
-#
-# This file is adapted from
-# https://huggingface.co/tiiuae/falcon-7b-instruct/blob/c7f670a03d987254220f343c6b026ea0c5147185/modelling_RW.py
-#
-# Apache 2.0 license
-# https://huggingface.co/tiiuae/falcon-7b-instruct#license
-
-# ===========================================================================
-# 
-# The patching on this file refers to https://huggingface.co/tiiuae/falcon-7b/discussions/17
-
-
 # port of models described in RW
 # We use the bloom model as a starting point for these model.
 # Please refer to the bloom models for usage instructions.
@@ -116,14 +87,9 @@ class RotaryEmbedding(torch.nn.Module):
 
         return self.cos_cached, self.sin_cached
 
-    # def forward(self, q, k):
-    def forward(self, q, k, seq_len):
-        # batch, seq_len, head_dim = q.shape
-        _,q_len,_ = q.shape
+    def forward(self, q, k):
+        batch, seq_len, head_dim = q.shape
         cos, sin = self.cos_sin(seq_len, q.device, q.dtype)
-        cos = cos[:,-q_len:]
-        sin = sin[:,-q_len:]
-
         return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
@@ -288,13 +254,7 @@ class Attention(nn.Module):
         )
         value_layer = value_layer.transpose(1, 2).reshape(batch_size * self.num_kv, q_length, self.head_dim)
 
-        # query_layer, key_layer = self.maybe_rotary(query_layer, key_layer)
-        _, seq_len, _ = query_layer.shape
-        if layer_past is not None:
-            _, seq_len_past, _ = layer_past[0].shape
-
-            seq_len = seq_len + seq_len_past
-        query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, seq_len)
+        query_layer, key_layer = self.maybe_rotary(query_layer, key_layer)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -316,20 +276,9 @@ class Attention(nn.Module):
             key_layer_ = key_layer.reshape(batch_size, self.num_kv, -1, self.head_dim)
             value_layer_ = value_layer.reshape(batch_size, self.num_kv, -1, self.head_dim)
 
-            # attn_output = F.scaled_dot_product_attention(
-            #     query_layer_, key_layer_, value_layer_, None, 0.0, is_causal=True
-            # )
-            if layer_past is not None:
-                L = query_layer_.shape[-2]
-                S = key_layer_.shape[-2]
-                attn_mask = torch.ones(L, S, dtype=torch.bool, device=query_layer_.device)
-                attn_output = F.scaled_dot_product_attention(
-                    query_layer_, key_layer_, value_layer_, attn_mask, 0.0, is_causal=False
-                )
-            else:
-                attn_output = F.scaled_dot_product_attention(
-                    query_layer_, key_layer_, value_layer_, None, 0.0, is_causal=True
-                )
+            attn_output = F.scaled_dot_product_attention(
+                query_layer_, key_layer_, value_layer_, None, 0.0, is_causal=True
+            )
 
             x = attn_output.view(batch_size, self.num_heads, q_length, self.head_dim)
             x = x.permute(0, 2, 1, 3)
@@ -526,16 +475,13 @@ class RWPreTrainedModel(PreTrainedModel):
     def _convert_to_rw_cache(
         past_key_value: Tuple[Tuple[torch.Tensor, torch.Tensor]]
     ) -> Tuple[Tuple[torch.Tensor, torch.Tensor]]:
-        # batch_size, num_heads, head_dim, seq_length = past_key_value[0][0].shape
-        batch_size, seq_length, head_dim = past_key_value[0][0].shape
-        num_heads = 1
+        batch_size, num_heads, head_dim, seq_length = past_key_value[0][0].shape
         batch_size_times_num_heads = batch_size * num_heads
         # key:  [batch_size, num_heads, head_dim, seq_length] -> [batch_size * num_heads, head_dim, seq_length]
         # value: [batch_size, num_heads, seq_length, head_dim] -> [batch_size * num_heads, seq_length, head_dim]
         return tuple(
             (
-                # layer_past[0].view(batch_size_times_num_heads, head_dim, seq_length),
-                layer_past[0].view(batch_size_times_num_heads, seq_length, head_dim),
+                layer_past[0].view(batch_size_times_num_heads, head_dim, seq_length),
                 layer_past[1].view(batch_size_times_num_heads, seq_length, head_dim),
             )
             for layer_past in past_key_value
@@ -753,26 +699,21 @@ class RWForCausalLM(RWPreTrainedModel):
     def prepare_inputs_for_generation(
         self,
         input_ids: torch.LongTensor,
-        # past: Optional[torch.Tensor] = None,
-        past_key_values: Optional[torch.Tensor] = None,
+        past: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> dict:
         # only last token for input_ids if past is not None
-        # if past:
-        if past_key_values:
+        if past:
             input_ids = input_ids[:, -1].unsqueeze(-1)
 
             # the cache may be in the stardard format (e.g. in contrastive search), convert to our's format if needed
-            # if past[0][0].shape[0] == input_ids.shape[0]:
-            #     past = self._convert_to_rw_cache(past)
-            if past_key_values[0][0].shape[0] == input_ids.shape[0]:
-                past_key_values = self._convert_to_rw_cache(past_key_values)
+            if past[0][0].shape[0] == input_ids.shape[0]:
+                past = self._convert_to_rw_cache(past)
 
         return {
             "input_ids": input_ids,
-            # "past_key_values": past,
-            "past_key_values": past_key_values,
+            "past_key_values": past,
             "use_cache": kwargs.get("use_cache"),
             "attention_mask": attention_mask,
         }

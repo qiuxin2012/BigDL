@@ -19,12 +19,9 @@ import torch
 from bigdl.llm.utils.common import invalidInputError
 from bigdl.llm.ggml.quantize import ggml_tensor_qtype
 from bigdl.llm.transformers.utils import get_ipex_version, get_xpu_device_type
+from bigdl.llm.transformers.low_bit_linear import SYM_INT4, SYM_INT8, FP8E5, IQ2_XXS, FP4, FP8E4
 
 FP8_KV_ALLOC_LENGTH = 512
-SYM_INT4 = ggml_tensor_qtype["sym_int4"]
-SYM_INT8 = ggml_tensor_qtype["sym_int8"]
-FP8E4 = ggml_tensor_qtype["fp8_e4m3"]
-FP8E5 = ggml_tensor_qtype["fp8_e5m2"]
 
 # used in fused mlp forward
 SILU = 0
@@ -326,6 +323,11 @@ def use_esimd_sdp(q_len, k_len, head_dim, query_states):
                 return False
         else:
             return False
+
+
+def decoding_fast_path_qtype_check(proj): 
+    qtype = getattr(proj, "qtype", None)
+    return qtype in [SYM_INT4, FP8E5, FP4]
 
 
 def mlp_fusion_check(x, qtype, training):

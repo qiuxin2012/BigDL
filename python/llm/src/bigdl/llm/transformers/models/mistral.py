@@ -51,7 +51,8 @@ from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb, \
     apply_rotary_pos_emb_no_cache_xpu
 from bigdl.llm.transformers.models.utils import is_enough_kv_cache_room_4_31, \
     is_enough_kv_cache_room_4_36
-from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5, IQ2_XXS
+from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5, IQ2_XXS, FP4
+from bigdl.llm.transformers.models.llama import llama_decoding_fast_path_qtype_check
 from bigdl.llm.transformers.models.utils import use_flash_attention, use_esimd_sdp
 try:
     from transformers.cache_utils import Cache
@@ -82,7 +83,7 @@ def should_use_fuse_rope(self, hidden_states, position_ids):
 
 
 def use_decoding_fast_path(q_type, use_fuse_rope, enough_kv_room, bs):
-    return q_type in [SYM_INT4, FP8E5, IQ2_XXS] and \
+    return llama_decoding_fast_path_qtype_check(q_type) and \
         use_fuse_rope and enough_kv_room and bs == 1
 
 
@@ -200,7 +201,7 @@ def mistral_attention_forward_quantized(
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states, position_ids)
     enough_kv_room = is_enough_kv_cache_room_4_31(past_key_value)
-    decoding_fast_path = use_decoding_fast_path(self.q_proj.qtype,
+    decoding_fast_path = use_decoding_fast_path(self.q_proj,
                                                 use_fuse_rope,
                                                 enough_kv_room,
                                                 bsz * q_len)
@@ -375,7 +376,7 @@ def mistral_attention_forward_original(
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states, position_ids)
     enough_kv_room = is_enough_kv_cache_room_4_31(past_key_value)
-    decoding_fast_path = use_decoding_fast_path(self.q_proj.qtype,
+    decoding_fast_path = use_decoding_fast_path(self.q_proj,
                                                 use_fuse_rope,
                                                 enough_kv_room,
                                                 bsz * q_len)
@@ -551,7 +552,7 @@ def mistral_attention_forward_4_36_quantized(
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states, position_ids)
     enough_kv_room = is_enough_kv_cache_room_4_36(past_key_value, self.layer_idx, seq_len=q_len)
-    decoding_fast_path = use_decoding_fast_path(self.q_proj.qtype,
+    decoding_fast_path = use_decoding_fast_path(self.q_proj,
                                                 use_fuse_rope,
                                                 enough_kv_room,
                                                 bsz * q_len)
@@ -731,7 +732,7 @@ def mistral_attention_forward_4_36_original(
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states, position_ids)
     enough_kv_room = is_enough_kv_cache_room_4_36(past_key_value, self.layer_idx)
-    decoding_fast_path = use_decoding_fast_path(self.q_proj.qtype,
+    decoding_fast_path = use_decoding_fast_path(self.q_proj,
                                                 use_fuse_rope,
                                                 enough_kv_room,
                                                 bsz * q_len)

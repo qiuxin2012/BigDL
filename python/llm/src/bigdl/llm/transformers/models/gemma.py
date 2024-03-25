@@ -40,7 +40,8 @@ from bigdl.llm.transformers.models.utils import init_kv_cache, extend_kv_cache, 
 from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_cache_freq_xpu
 from bigdl.llm.transformers.models.utils import mlp_fusion_check, GELU
 from bigdl.llm.transformers.models.utils import is_enough_kv_cache_room_4_36, rotate_half
-from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5
+from bigdl.llm.transformers.models.utils import decoding_fast_path_qtype_check
+from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5, FP4
 
 KV_CACHE_ALLOC_BLOCK_LENGTH = 256
 
@@ -74,8 +75,8 @@ def should_use_fuse_rope(self, hidden_states, position_ids):
     return use_fuse_rope
 
 
-def use_decoding_fast_path(q_type, use_fuse_rope, enough_kv_room, bs):
-    return q_type in [SYM_INT4, FP8E5] and \
+def use_decoding_fast_path(proj, use_fuse_rope, enough_kv_room, bs):
+    return decoding_fast_path_qtype_check(proj) and \
         use_fuse_rope and enough_kv_room and bs == 1
 
 
@@ -137,7 +138,7 @@ def gemma_attention_forward(
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states, position_ids)
     enough_kv_room = is_enough_kv_cache_room_4_36(past_key_value, self.layer_idx)
-    decoding_fast_path = use_decoding_fast_path(self.q_proj.qtype,
+    decoding_fast_path = use_decoding_fast_path(self.q_proj,
                                                 use_fuse_rope,
                                                 enough_kv_room,
                                                 bsz * q_len)

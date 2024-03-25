@@ -42,6 +42,7 @@ from bigdl.llm.transformers.models.utils import init_fp8_kv_cache, append_fp8_kv
 from bigdl.llm.transformers.models.utils import rotate_half, SILU
 from bigdl.llm.transformers.models.utils import mlp_fusion_check
 from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_cache_freq_xpu
+from bigdl.llm.transformers.models.utils import decoding_fast_path_qtype_check
 from bigdl.llm.transformers.models.utils import use_flash_attention, use_esimd_sdp
 from bigdl.llm.utils.common import invalidInputError, invalidOperationError
 from bigdl.llm.ggml.quantize import ggml_tensor_qtype
@@ -137,7 +138,8 @@ def qwen_attention_forward_original(
     original_dtype = hidden_states.dtype
 
     use_fuse_rope = should_use_fuse_rope(self, hidden_states)
-    decoding_fast_path = (use_fuse_rope and bsz * q_len == 1)
+    qtype_check = decoding_fast_path_qtype_check(self.q_proj)
+    decoding_fast_path = (qtype_check and use_fuse_rope and bsz * q_len == 1)
     if decoding_fast_path:
         hidden_states = hidden_states.view(1, -1)
         cache_k, cache_v = layer_past[0], layer_past[1]

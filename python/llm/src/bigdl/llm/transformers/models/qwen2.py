@@ -53,10 +53,12 @@ from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_cache_freq_
 from bigdl.llm.transformers.kv import DynamicFp8Cache
 from bigdl.llm.utils.common import invalidInputError
 from bigdl.llm.transformers.models.utils import use_flash_attention, use_esimd_sdp
+from bigdl.llm.transformers.models.utils import decoding_fast_path_qtype_check
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Model, apply_rotary_pos_emb
 from transformers.models.qwen2.modeling_qwen2 import _prepare_4d_causal_attention_mask_for_sdpa
 from transformers.models.qwen2.modeling_qwen2 import _prepare_4d_causal_attention_mask
 from transformers.modeling_outputs import BaseModelOutputWithPast
+from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5, IQ2_XXS, FP4
 
 try:
     from transformers.cache_utils import Cache, DynamicCache
@@ -404,9 +406,6 @@ def qwen2_attention_forward_quantized(
         attn_weights = None
 
     return attn_output, attn_weights, past_key_value
-from bigdl.llm.ggml.quantize import ggml_tensor_qtype
-SYM_INT4 = ggml_tensor_qtype["sym_int4"]
-FP8E5 = ggml_tensor_qtype["fp8_e5m2"]
 
 
 def qwen2_attention_forward_origin(
@@ -431,8 +430,7 @@ def qwen2_attention_forward_origin(
     device = hidden_states.device
 
     enough_kv_room = is_enough_kv_cache_room_4_36(past_key_value, self.layer_idx)
-    qtype = getattr(self.q_proj, "qtype", None)
-    qtype_check = qtype in [SYM_INT4, FP8E5]
+    qtype_check = decoding_fast_path_qtype_check(self.q_proj)
     decoding_fast_path = (qtype_check and use_fuse_rope
                           and enough_kv_room and bsz * q_len == 1)
     if decoding_fast_path:

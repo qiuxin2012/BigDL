@@ -35,13 +35,14 @@ from bigdl.llm.transformers.models.utils import init_kv_cache, extend_kv_cache, 
 from bigdl.llm.transformers.models.utils import init_fp8_kv_cache, append_fp8_kv_cache, \
     restore_fp8_kv_cache, use_quantize_kv_cache
 from bigdl.llm.transformers.models.utils import is_enough_kv_cache_room_4_31, SILU
-from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5
+from bigdl.llm.transformers.models.utils import decoding_fast_path_qtype_check
+from bigdl.llm.transformers.low_bit_linear import SYM_INT4, FP8E5, FP4
 
 KV_CACHE_ALLOC_BLOCK_LENGTH = 256
 
 
-def use_decoding_fast_path(q_type, use_fuse_rope, enough_kv_room, bs):
-    return q_type in [SYM_INT4, FP8E5] and \
+def use_decoding_fast_path(proj, use_fuse_rope, enough_kv_room, bs):
+    return decoding_fast_path_qtype_check(proj) and \
         use_fuse_rope and enough_kv_room and bs == 1
 
 
